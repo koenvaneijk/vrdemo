@@ -45,8 +45,8 @@ function createGunModel(color) {
     sight.position.set(0, 0.03, -0.02);
     gunGroup.add(sight);
     
-    // Rotate the entire gun to point forward
-    gunGroup.rotation.y = Math.PI;
+    // Rotate the entire gun to point forward (away from the user)
+    // No rotation needed on y-axis as we want it to point forward by default
     
     return gunGroup;
 }

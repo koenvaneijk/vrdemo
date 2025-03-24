@@ -19,10 +19,19 @@ let isShooting = [false, false]; // Track shooting state for each controller
 // Initialize Tone.js sound effects
 function initSounds() {
     // Start Tone.js audio context (needs to be triggered by user interaction)
-    document.addEventListener('click', async () => {
+    const startAudio = async () => {
         await Tone.start();
         console.log('Tone.js audio context started');
-    });
+        // Remove the event listeners once audio is started
+        document.removeEventListener('click', startAudio);
+        document.removeEventListener('touchstart', startAudio);
+        document.getElementById('enter-vr-button').removeEventListener('click', startAudio);
+    };
+    
+    // Add multiple event listeners to ensure audio starts
+    document.addEventListener('click', startAudio);
+    document.addEventListener('touchstart', startAudio);
+    document.getElementById('enter-vr-button').addEventListener('click', startAudio);
     
     // Create shooting sound for each gun
     for (let i = 0; i < 2; i++) {
@@ -254,13 +263,41 @@ function setupVRControllers() {
         gunModel.add(pointerLine);
         
         // Store reference to the muzzle flash
-        muzzleFlashes.push(gunModel.children.find(child => 
-            child.geometry && child.geometry.type === 'CylinderGeometry' && 
-            child.position.z < -0.3));
+        const muzzleFlash = gunModel.children.find(child => 
+            child.geometry && 
+            child.geometry.type === 'CylinderGeometry' && 
+            child.position.z < -0.3);
+            
+        if (muzzleFlash) {
+            muzzleFlashes.push(muzzleFlash);
+        } else {
+            console.error('Muzzle flash not found for gun', i);
+            // Create a fallback muzzle flash if not found
+            const flashGeometry = new THREE.CylinderGeometry(0.01, 0.05, 0.1, 16);
+            const flashMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0xffff00,
+                transparent: true,
+                opacity: 0.0
+            });
+            const newMuzzleFlash = new THREE.Mesh(flashGeometry, flashMaterial);
+            newMuzzleFlash.rotation.x = Math.PI / 2;
+            newMuzzleFlash.position.z = -0.35; // Position at the end of the barrel
+            gunModel.add(newMuzzleFlash);
+            muzzleFlashes.push(newMuzzleFlash);
+        }
         
-        // Add event listener for the trigger button
+        // Add event listeners for the trigger button
         controller.addEventListener('selectstart', () => {
             shootGun(i);
+        });
+        
+        // Also listen for selectend to ensure we can shoot again
+        controller.addEventListener('selectend', () => {
+            // Make sure shooting state is reset when trigger is released
+            // This is a safety measure in case the timeout in shootGun doesn't complete
+            setTimeout(() => {
+                isShooting[i] = false;
+            }, 50);
         });
         
         // Store references

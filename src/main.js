@@ -69,7 +69,8 @@ const TARGET_TYPES = {
         emissiveIntensity: 0.5,
         speedMultiplier: 2.0,
         points: 30,
-        spawnChance: 0.2 // 20% chance
+        spawnChance: 0.2, // 20% chance
+        maxHealth: 1     // One hit to destroy
     },
     MEDIUM: {
         size: 0.3,
@@ -77,7 +78,8 @@ const TARGET_TYPES = {
         emissiveIntensity: 0.3,
         speedMultiplier: 1.0,
         points: 10,
-        spawnChance: 0.5 // 50% chance
+        spawnChance: 0.5, // 50% chance
+        maxHealth: 2     // Two hits to destroy
     },
     LARGE: {
         size: 0.5,
@@ -85,7 +87,8 @@ const TARGET_TYPES = {
         emissiveIntensity: 0.2,
         speedMultiplier: 0.6,
         points: 5,
-        spawnChance: 0.3 // 30% chance
+        spawnChance: 0.3, // 30% chance
+        maxHealth: 3     // Three hits to destroy
     }
 };
 
@@ -614,6 +617,9 @@ function spawnTarget() {
             targetType = TARGET_TYPES.LARGE;
         }
         
+        // Create a group to hold the target and its health bar
+        const targetGroup = new THREE.Group();
+        
         // Create target geometry (sphere)
         const targetGeometry = new THREE.SphereGeometry(targetType.size, 32, 32);
         const targetMaterial = new THREE.MeshStandardMaterial({ 
@@ -622,10 +628,18 @@ function spawnTarget() {
             emissiveIntensity: targetType.emissiveIntensity,
             roughness: 0.4
         });
-        const target = new THREE.Mesh(targetGeometry, targetMaterial);
+        const targetMesh = new THREE.Mesh(targetGeometry, targetMaterial);
         
-        // Position the target on the ground (y = radius to place bottom of sphere on ground)
-        target.position.set(x, targetType.size, z);
+        // Add the target mesh to the group
+        targetGroup.add(targetMesh);
+        
+        // Create health bar
+        const healthBarGroup = createHealthBar(targetType.maxHealth);
+        healthBarGroup.position.y = targetType.size * 1.5; // Position above the target
+        targetGroup.add(healthBarGroup);
+        
+        // Position the target group on the ground (y = radius to place bottom of sphere on ground)
+        targetGroup.position.set(x, targetType.size, z);
         
         // Add random movement direction
         const angle = Math.random() * Math.PI * 2;
@@ -633,24 +647,81 @@ function spawnTarget() {
         const speed = baseSpeed * targetType.speedMultiplier; // Apply speed multiplier based on target type
         
         // Store movement data with the target
-        target.userData = {
+        targetGroup.userData = {
             velocity: new THREE.Vector2(Math.cos(angle) * speed, Math.sin(angle) * speed),
             lastPosition: new THREE.Vector3(x, targetType.size, z),
             targetPosition: new THREE.Vector3(x, targetType.size, z), // Target position for lerping
             type: targetType, // Store the target type for reference
-            points: targetType.points // Store the point value
+            points: targetType.points, // Store the point value
+            health: targetType.maxHealth, // Current health
+            maxHealth: targetType.maxHealth, // Maximum health
+            healthBar: healthBarGroup, // Reference to the health bar
+            targetMesh: targetMesh // Reference to the actual target mesh
         };
         
         // Add to scene and targets array
-        scene.add(target);
-        targets.push(target);
+        scene.add(targetGroup);
+        targets.push(targetGroup);
         
         logger.log(`Spawned ${getTargetTypeName(targetType)} target at (${x.toFixed(2)}, ${targetType.size.toFixed(2)}, ${z.toFixed(2)}), total targets: ${targets.length}`);
         
-        return target;
+        return targetGroup;
     } catch (error) {
         logger.error('Error in spawnTarget:', error);
         return null;
+    }
+}
+
+// Create a health bar for a target
+function createHealthBar(maxHealth) {
+    const healthBarGroup = new THREE.Group();
+    
+    // Background bar (black)
+    const bgBarGeometry = new THREE.PlaneGeometry(0.5, 0.05);
+    const bgBarMaterial = new THREE.MeshBasicMaterial({
+        color: 0x000000,
+        side: THREE.DoubleSide
+    });
+    const bgBar = new THREE.Mesh(bgBarGeometry, bgBarMaterial);
+    healthBarGroup.add(bgBar);
+    
+    // Health bar (green)
+    const healthBarGeometry = new THREE.PlaneGeometry(0.5, 0.05);
+    const healthBarMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ff00,
+        side: THREE.DoubleSide
+    });
+    const healthBar = new THREE.Mesh(healthBarGeometry, healthBarMaterial);
+    healthBar.position.z = 0.001; // Slightly in front of the background
+    healthBarGroup.add(healthBar);
+    
+    // Store references to update later
+    healthBarGroup.userData = {
+        healthBar: healthBar,
+        maxWidth: 0.5
+    };
+    
+    return healthBarGroup;
+}
+
+// Update a target's health bar
+function updateHealthBar(target) {
+    const healthBar = target.userData.healthBar.userData.healthBar;
+    const healthPercent = target.userData.health / target.userData.maxHealth;
+    const maxWidth = target.userData.healthBar.userData.maxWidth;
+    
+    // Update the health bar's width based on current health
+    healthBar.scale.x = healthPercent;
+    // Center the bar by adjusting its position
+    healthBar.position.x = (maxWidth * (healthPercent - 1)) / 2;
+    
+    // Update color based on health percentage
+    if (healthPercent > 0.6) {
+        healthBar.material.color.setHex(0x00ff00); // Green
+    } else if (healthPercent > 0.3) {
+        healthBar.material.color.setHex(0xffff00); // Yellow
+    } else {
+        healthBar.material.color.setHex(0xff0000); // Red
     }
 }
 
@@ -730,36 +801,61 @@ function checkTargetHits(controllerIndex) {
         }
         
         if (hitTarget) {
-            // Get the point value from the target
-            const pointValue = hitTarget.userData.type.points;
-            const targetTypeName = getTargetTypeName(hitTarget.userData.type);
+            // Get the target data
+            const targetData = hitTarget.userData;
+            const pointValue = targetData.type.points;
+            const targetTypeName = getTargetTypeName(targetData.type);
             
             logger.log(`Hit ${targetTypeName} target ${hitTargetIndex} at distance ${hitDistance.toFixed(2)}`);
             
             // Play hit sound with pitch based on target size (higher pitch for smaller targets)
-            const noteOffset = hitTarget.userData.type === TARGET_TYPES.SMALL ? 12 : 
-                              hitTarget.userData.type === TARGET_TYPES.MEDIUM ? 7 : 0;
+            const noteOffset = targetData.type === TARGET_TYPES.SMALL ? 12 : 
+                              targetData.type === TARGET_TYPES.MEDIUM ? 7 : 0;
             targetHitSound.triggerAttackRelease(`C${5 + Math.floor(noteOffset/12)}`, "16n");
             
-            // Increment score
-            score += pointValue;
-            logger.log(`Score increased by ${pointValue} to ${score}`);
+            // Reduce target health
+            targetData.health--;
             
-            // Update score display
-            updateScoreDisplay();
+            // Update the health bar
+            updateHealthBar(hitTarget);
             
-            // Create a floating score indicator at the hit position
-            createFloatingScore(hitTarget.position, pointValue);
+            // Create a floating damage indicator
+            createFloatingScore(hitTarget.position, "-1 HP", 0xff0000);
             
-            // Remove the hit target
-            removeTarget(hitTargetIndex);
-            
-            // Spawn a new target after a delay
-            setTimeout(() => {
-                if (targets.length < 10) {
-                    spawnTarget();
-                }
-            }, 1000);
+            if (targetData.health <= 0) {
+                // Target destroyed - award points
+                logger.log(`Destroyed ${targetTypeName} target`);
+                
+                // Increment score
+                score += pointValue;
+                logger.log(`Score increased by ${pointValue} to ${score}`);
+                
+                // Update score display
+                updateScoreDisplay();
+                
+                // Create a floating score indicator at the hit position
+                createFloatingScore(hitTarget.position, `+${pointValue}`, 0xffff00);
+                
+                // Remove the hit target
+                removeTarget(hitTargetIndex);
+                
+                // Spawn a new target after a delay
+                setTimeout(() => {
+                    if (targets.length < 10) {
+                        spawnTarget();
+                    }
+                }, 1000);
+            } else {
+                // Target still alive - flash the target to indicate damage
+                const targetMesh = targetData.targetMesh;
+                const originalEmissiveIntensity = targetData.type.emissiveIntensity;
+                
+                // Flash effect
+                targetMesh.material.emissiveIntensity = 1.0;
+                setTimeout(() => {
+                    targetMesh.material.emissiveIntensity = originalEmissiveIntensity;
+                }, 100);
+            }
         }
     } catch (error) {
         logger.error('Error in checkTargetHits:', error);
@@ -767,7 +863,7 @@ function checkTargetHits(controllerIndex) {
 }
 
 // Create a floating score indicator that rises and fades
-function createFloatingScore(position, points) {
+function createFloatingScore(position, text, color = 0xffff00) {
     // Create a canvas for the score text
     const canvas = document.createElement('canvas');
     canvas.width = 128;
@@ -776,10 +872,10 @@ function createFloatingScore(position, points) {
     
     // Draw the score text
     context.font = 'Bold 32px Arial';
-    context.fillStyle = 'yellow';
+    context.fillStyle = new THREE.Color(color).getStyle();
     context.textAlign = 'center';
     context.textBaseline = 'middle';
-    context.fillText(`+${points}`, canvas.width / 2, canvas.height / 2);
+    context.fillText(text, canvas.width / 2, canvas.height / 2);
     
     // Create texture from canvas
     const texture = new THREE.CanvasTexture(canvas);
@@ -1075,6 +1171,14 @@ function animate() {
             
             // Update the raycaster
             raycasters[i].set(gunTip, rayDirection);
+        }
+    }
+    
+    // Make health bars face the camera
+    for (let i = 0; i < targets.length; i++) {
+        const target = targets[i];
+        if (target.userData.healthBar) {
+            target.userData.healthBar.lookAt(camera.position);
         }
     }
     

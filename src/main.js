@@ -381,7 +381,19 @@ function updateScoreDisplay() {
 function init() {
     // Create scene
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x505050);
+    
+    // Create skybox (low-poly style)
+    const skyboxGeometry = new THREE.BoxGeometry(1000, 1000, 1000);
+    const skyboxMaterials = [
+        new THREE.MeshBasicMaterial({ color: 0x87CEEB, side: THREE.BackSide }), // Right - light blue
+        new THREE.MeshBasicMaterial({ color: 0x6495ED, side: THREE.BackSide }), // Left - cornflower blue
+        new THREE.MeshBasicMaterial({ color: 0x00BFFF, side: THREE.BackSide }), // Top - deep sky blue
+        new THREE.MeshBasicMaterial({ color: 0x4682B4, side: THREE.BackSide }), // Bottom - steel blue
+        new THREE.MeshBasicMaterial({ color: 0x87CEEB, side: THREE.BackSide }), // Front - light blue
+        new THREE.MeshBasicMaterial({ color: 0x6495ED, side: THREE.BackSide })  // Back - cornflower blue
+    ];
+    const skybox = new THREE.Mesh(skyboxGeometry, skyboxMaterials);
+    scene.add(skybox);
 
     // Create camera
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -392,6 +404,8 @@ function init() {
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.xr.enabled = true;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.body.appendChild(renderer.domElement);
 
     // Add VR button
@@ -401,28 +415,27 @@ function init() {
     document.getElementById('enter-vr-button').style.display = 'none';
 
     // Add lighting
-    const ambientLight = new THREE.AmbientLight(0x404040);
+    const ambientLight = new THREE.AmbientLight(0x6b8cff, 0.4); // Soft blue ambient light
     scene.add(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-    directionalLight.position.set(1, 1, 1).normalize();
+    const directionalLight = new THREE.DirectionalLight(0xffffbb, 1); // Warm sunlight
+    directionalLight.position.set(5, 10, 7).normalize();
+    directionalLight.castShadow = true;
+    directionalLight.shadow.mapSize.width = 1024;
+    directionalLight.shadow.mapSize.height = 1024;
+    directionalLight.shadow.camera.near = 0.5;
+    directionalLight.shadow.camera.far = 50;
     scene.add(directionalLight);
+    
+    // Add a hemisphere light for more natural outdoor lighting
+    const hemisphereLight = new THREE.HemisphereLight(0xffffbb, 0x080820, 0.5);
+    scene.add(hemisphereLight);
 
-    // Add a larger floor
-    const floorGeometry = new THREE.PlaneGeometry(50, 50);
-    const floorMaterial = new THREE.MeshStandardMaterial({ 
-        color: 0x808080,
-        roughness: 0.8,
-        metalness: 0.2
-    });
-    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = 0;
-    scene.add(floor);
-
-    // Add a grid helper
-    const gridHelper = new THREE.GridHelper(50, 50);
-    scene.add(gridHelper);
+    // Create a stylized low-poly terrain
+    createLowPolyTerrain();
+    
+    // Add some decorative elements
+    addEnvironmentElements();
     
     // Create score display
     createScoreDisplay();
@@ -834,6 +847,215 @@ function moveTargets() {
     } catch (error) {
         logger.error('Error in moveTargets:', error);
     }
+}
+
+// Create a low-poly terrain
+function createLowPolyTerrain() {
+    // Create a larger terrain with low-poly style
+    const terrainSize = 100;
+    const terrainSegments = 50;
+    const terrainGeometry = new THREE.PlaneGeometry(terrainSize, terrainSize, terrainSegments, terrainSegments);
+    
+    // Modify vertices to create hills and valleys
+    const vertices = terrainGeometry.attributes.position.array;
+    for (let i = 0; i < vertices.length; i += 3) {
+        // Skip the center area to keep it flat for gameplay
+        const x = vertices[i];
+        const z = vertices[i + 2];
+        const distanceFromCenter = Math.sqrt(x * x + z * z);
+        
+        if (distanceFromCenter > 20) {
+            // Create hills and valleys outside the gameplay area
+            const amplitude = 0.5 + Math.random() * 0.5; // Random height between 0.5 and 1.0
+            vertices[i + 1] = amplitude * Math.sin(x * 0.1) * Math.cos(z * 0.1);
+            
+            // Make the terrain higher toward the edges
+            vertices[i + 1] += (distanceFromCenter - 20) * 0.05;
+        }
+    }
+    
+    // Update the geometry
+    terrainGeometry.computeVertexNormals();
+    
+    // Create a gradient material for the terrain
+    const terrainMaterial = new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        flatShading: true,
+        roughness: 0.8,
+        metalness: 0.1
+    });
+    
+    // Add vertex colors to create a gradient
+    const colors = [];
+    const color1 = new THREE.Color(0x4CBB17); // Forest green
+    const color2 = new THREE.Color(0x228B22); // Forest green (darker)
+    const color3 = new THREE.Color(0x8B4513); // Saddle brown (for mountains)
+    
+    for (let i = 0; i < vertices.length; i += 3) {
+        const y = vertices[i + 1];
+        let color;
+        
+        if (y < 0.2) {
+            color = color1.clone();
+        } else if (y < 1.0) {
+            const t = (y - 0.2) / 0.8;
+            color = color1.clone().lerp(color2, t);
+        } else {
+            const t = Math.min((y - 1.0) / 2.0, 1.0);
+            color = color2.clone().lerp(color3, t);
+        }
+        
+        colors.push(color.r, color.g, color.b);
+    }
+    
+    terrainGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    
+    // Create the terrain mesh
+    const terrain = new THREE.Mesh(terrainGeometry, terrainMaterial);
+    terrain.rotation.x = -Math.PI / 2;
+    terrain.position.y = -0.5; // Lower the terrain slightly
+    scene.add(terrain);
+    
+    // Add a flat area for gameplay
+    const playAreaGeometry = new THREE.CircleGeometry(20, 32);
+    const playAreaMaterial = new THREE.MeshStandardMaterial({
+        color: 0x90EE90, // Light green
+        roughness: 0.9,
+        metalness: 0.1,
+        flatShading: true
+    });
+    const playArea = new THREE.Mesh(playAreaGeometry, playAreaMaterial);
+    playArea.rotation.x = -Math.PI / 2;
+    playArea.position.y = 0;
+    scene.add(playArea);
+    
+    // Add a subtle grid to the play area
+    const gridHelper = new THREE.GridHelper(40, 20);
+    gridHelper.position.y = 0.01; // Slightly above the ground to avoid z-fighting
+    gridHelper.material.opacity = 0.2;
+    gridHelper.material.transparent = true;
+    scene.add(gridHelper);
+}
+
+// Add decorative elements to the environment
+function addEnvironmentElements() {
+    // Add some low-poly trees
+    for (let i = 0; i < 30; i++) {
+        // Position trees around the play area but not in it
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 25 + Math.random() * 40; // Between 25 and 65 units from center
+        const x = Math.cos(angle) * radius;
+        const z = Math.sin(angle) * radius;
+        
+        createLowPolyTree(x, 0, z);
+    }
+    
+    // Add some rocks
+    for (let i = 0; i < 20; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 22 + Math.random() * 40; // Between 22 and 62 units from center
+        const x = Math.cos(angle) * radius;
+        const z = Math.sin(angle) * radius;
+        
+        createLowPolyRock(x, 0, z);
+    }
+    
+    // Add distant mountains
+    createDistantMountains();
+}
+
+// Create a low-poly tree
+function createLowPolyTree(x, y, z) {
+    const treeGroup = new THREE.Group();
+    
+    // Tree trunk
+    const trunkGeometry = new THREE.CylinderGeometry(0.2, 0.4, 2, 6);
+    const trunkMaterial = new THREE.MeshStandardMaterial({
+        color: 0x8B4513, // Saddle brown
+        roughness: 1.0,
+        flatShading: true
+    });
+    const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+    trunk.position.y = 1;
+    treeGroup.add(trunk);
+    
+    // Tree foliage (cone)
+    const foliageGeometry = new THREE.ConeGeometry(1.5, 3, 6);
+    const foliageMaterial = new THREE.MeshStandardMaterial({
+        color: 0x228B22, // Forest green
+        roughness: 1.0,
+        flatShading: true
+    });
+    const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
+    foliage.position.y = 3.5;
+    treeGroup.add(foliage);
+    
+    // Position the tree
+    treeGroup.position.set(x, y, z);
+    
+    // Add some random rotation and scale
+    treeGroup.rotation.y = Math.random() * Math.PI * 2;
+    const scale = 0.7 + Math.random() * 0.6; // Scale between 0.7 and 1.3
+    treeGroup.scale.set(scale, scale, scale);
+    
+    scene.add(treeGroup);
+}
+
+// Create a low-poly rock
+function createLowPolyRock(x, y, z) {
+    const rockGeometry = new THREE.DodecahedronGeometry(0.5 + Math.random() * 0.5, 0);
+    const rockMaterial = new THREE.MeshStandardMaterial({
+        color: 0x808080, // Gray
+        roughness: 1.0,
+        flatShading: true
+    });
+    const rock = new THREE.Mesh(rockGeometry, rockMaterial);
+    
+    // Position the rock
+    rock.position.set(x, y + 0.25, z);
+    
+    // Add some random rotation and scale
+    rock.rotation.set(
+        Math.random() * Math.PI,
+        Math.random() * Math.PI,
+        Math.random() * Math.PI
+    );
+    const scale = 0.8 + Math.random() * 1.2; // Scale between 0.8 and 2.0
+    rock.scale.set(scale, scale * 0.7, scale);
+    
+    scene.add(rock);
+}
+
+// Create distant mountains
+function createDistantMountains() {
+    const mountainGroup = new THREE.Group();
+    
+    // Create a ring of mountains around the scene
+    for (let i = 0; i < 12; i++) {
+        const angle = (i / 12) * Math.PI * 2;
+        const radius = 80;
+        const x = Math.cos(angle) * radius;
+        const z = Math.sin(angle) * radius;
+        
+        // Create a mountain
+        const mountainGeometry = new THREE.ConeGeometry(10 + Math.random() * 5, 15 + Math.random() * 10, 5);
+        const mountainMaterial = new THREE.MeshStandardMaterial({
+            color: 0x4682B4, // Steel blue
+            roughness: 1.0,
+            flatShading: true
+        });
+        const mountain = new THREE.Mesh(mountainGeometry, mountainMaterial);
+        
+        // Position the mountain
+        mountain.position.set(x, 0, z);
+        
+        // Add some random rotation
+        mountain.rotation.y = Math.random() * Math.PI * 2;
+        
+        mountainGroup.add(mountain);
+    }
+    
+    scene.add(mountainGroup);
 }
 
 // Animation loop

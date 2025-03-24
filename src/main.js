@@ -424,7 +424,7 @@ function init() {
             // Set up interval to move targets
             moveTargetsInterval = setInterval(() => {
                 moveTargets();
-            }, 50); // Update target positions every 50ms
+            }, 16); // Update target positions more frequently for smoother animation (approx 60fps)
             
             logger.log('Initial targets spawned:', targets.length);
         } catch (error) {
@@ -576,12 +576,13 @@ function spawnTarget() {
         
         // Add random movement direction
         const angle = Math.random() * Math.PI * 2;
-        const speed = 0.02 + Math.random() * 0.03; // Random speed between 0.02 and 0.05 units per frame
+        const speed = 0.005 + Math.random() * 0.01; // Slower speed between 0.005 and 0.015 units per frame
         
         // Store movement data with the target
         target.userData = {
             velocity: new THREE.Vector2(Math.cos(angle) * speed, Math.sin(angle) * speed),
-            lastPosition: new THREE.Vector3(x, 0.3, z)
+            lastPosition: new THREE.Vector3(x, 0.3, z),
+            targetPosition: new THREE.Vector3(x, 0.3, z) // Target position for lerping
         };
         
         // Add to scene and targets array
@@ -746,25 +747,30 @@ function moveTargets() {
     try {
         for (let i = 0; i < targets.length; i++) {
             const target = targets[i];
-            const velocity = target.userData.velocity;
+            const userData = target.userData;
+            const velocity = userData.velocity;
             
-            // Update position based on velocity
-            target.position.x += velocity.x;
-            target.position.z += velocity.y;
+            // Update target position based on velocity
+            userData.targetPosition.x += velocity.x;
+            userData.targetPosition.z += velocity.y;
             
             // Bounce off boundaries
             const boundarySize = 24; // Keep within a 48x48 area (slightly smaller than the 50x50 floor)
-            if (Math.abs(target.position.x) > boundarySize) {
+            if (Math.abs(userData.targetPosition.x) > boundarySize) {
                 velocity.x *= -1; // Reverse x direction
-                target.position.x = Math.sign(target.position.x) * boundarySize; // Keep within bounds
+                userData.targetPosition.x = Math.sign(userData.targetPosition.x) * boundarySize; // Keep within bounds
             }
-            if (Math.abs(target.position.z) > boundarySize) {
+            if (Math.abs(userData.targetPosition.z) > boundarySize) {
                 velocity.y *= -1; // Reverse z direction
-                target.position.z = Math.sign(target.position.z) * boundarySize; // Keep within bounds
+                userData.targetPosition.z = Math.sign(userData.targetPosition.z) * boundarySize; // Keep within bounds
             }
             
+            // Lerp the actual position toward the target position (smooth movement)
+            target.position.x = THREE.MathUtils.lerp(target.position.x, userData.targetPosition.x, 0.05);
+            target.position.z = THREE.MathUtils.lerp(target.position.z, userData.targetPosition.z, 0.05);
+            
             // Update last position
-            target.userData.lastPosition.copy(target.position);
+            userData.lastPosition.copy(target.position);
         }
     } catch (error) {
         logger.error('Error in moveTargets:', error);

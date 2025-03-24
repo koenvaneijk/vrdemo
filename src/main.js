@@ -6,6 +6,44 @@ import { XRControllerModelFactory } from 'three/examples/jsm/webxr/XRControllerM
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import * as Tone from 'tone';
 
+// Create a custom logger that sends logs to the server
+const logger = {
+    log: function(...args) {
+        console.log(...args);
+        fetch('/api/log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ level: 'log', message: args.map(arg => String(arg)).join(' ') })
+        }).catch(e => console.error('Failed to send log to server:', e));
+    },
+    error: function(...args) {
+        console.error(...args);
+        fetch('/api/log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ level: 'error', message: args.map(arg => String(arg)).join(' ') })
+        }).catch(e => console.error('Failed to send error to server:', e));
+    },
+    warn: function(...args) {
+        console.warn(...args);
+        fetch('/api/log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ level: 'warn', message: args.map(arg => String(arg)).join(' ') })
+        }).catch(e => console.error('Failed to send warning to server:', e));
+    }
+};
+
+// Capture global errors
+window.addEventListener('error', (event) => {
+    logger.error('Global error:', event.message, 'at', event.filename, 'line', event.lineno);
+});
+
+// Capture unhandled promise rejections
+window.addEventListener('unhandledrejection', (event) => {
+    logger.error('Unhandled Promise Rejection:', event.reason);
+});
+
 // Main Three.js VR application
 let scene, camera, renderer;
 let controllers = [];
@@ -24,12 +62,16 @@ let spawnTargetsInterval; // Interval for spawning targets
 function initSounds() {
     // Start Tone.js audio context (needs to be triggered by user interaction)
     const startAudio = async () => {
-        await Tone.start();
-        console.log('Tone.js audio context started');
-        // Remove the event listeners once audio is started
-        document.removeEventListener('click', startAudio);
-        document.removeEventListener('touchstart', startAudio);
-        document.getElementById('enter-vr-button').removeEventListener('click', startAudio);
+        try {
+            await Tone.start();
+            logger.log('Tone.js audio context started');
+            // Remove the event listeners once audio is started
+            document.removeEventListener('click', startAudio);
+            document.removeEventListener('touchstart', startAudio);
+            document.getElementById('enter-vr-button').removeEventListener('click', startAudio);
+        } catch (error) {
+            logger.error('Failed to start Tone.js audio context:', error);
+        }
     };
     
     // Add multiple event listeners to ensure audio starts
@@ -131,25 +173,37 @@ function createGunModel(color) {
 
 // Play shooting animation and sound
 function shootGun(index) {
-    if (isShooting[index]) return; // Already shooting
-    
-    isShooting[index] = true;
-    
-    // Play sound
-    shootingSounds[index].triggerAttackRelease("C1", "16n");
-    
-    // Show muzzle flash
-    const flash = muzzleFlashes[index];
-    flash.material.opacity = 1.0;
-    
-    // Check for target hits
-    checkTargetHits(index);
-    
-    // Hide muzzle flash after a short delay
-    setTimeout(() => {
-        flash.material.opacity = 0.0;
-        isShooting[index] = false;
-    }, 100);
+    try {
+        if (isShooting[index]) return; // Already shooting
+        
+        logger.log(`Shooting gun ${index}`);
+        isShooting[index] = true;
+        
+        // Play sound
+        shootingSounds[index].triggerAttackRelease("C1", "16n");
+        
+        // Show muzzle flash
+        const flash = muzzleFlashes[index];
+        if (flash) {
+            flash.material.opacity = 1.0;
+        } else {
+            logger.warn(`Muzzle flash not found for gun ${index}`);
+        }
+        
+        // Check for target hits
+        checkTargetHits(index);
+        
+        // Hide muzzle flash after a short delay
+        setTimeout(() => {
+            if (flash) {
+                flash.material.opacity = 0.0;
+            }
+            isShooting[index] = false;
+        }, 100);
+    } catch (error) {
+        logger.error(`Error in shootGun(${index}):`, error);
+        isShooting[index] = false; // Reset shooting state in case of error
+    }
 }
 
 // Initialize the scene, camera, and renderer
@@ -207,25 +261,39 @@ function init() {
     
     // Start spawning targets when entering VR
     renderer.xr.addEventListener('sessionstart', () => {
-        // Spawn initial targets
-        for (let i = 0; i < 5; i++) {
-            spawnTarget();
-        }
-        
-        // Set up interval to spawn new targets
-        spawnTargetsInterval = setInterval(() => {
-            if (targets.length < 10) { // Limit the number of targets
+        logger.log('VR session started');
+        try {
+            // Spawn initial targets
+            for (let i = 0; i < 5; i++) {
                 spawnTarget();
             }
-        }, 3000); // Spawn a new target every 3 seconds
+            
+            // Set up interval to spawn new targets
+            spawnTargetsInterval = setInterval(() => {
+                if (targets.length < 10) { // Limit the number of targets
+                    spawnTarget();
+                }
+            }, 3000); // Spawn a new target every 3 seconds
+            
+            logger.log('Initial targets spawned:', targets.length);
+        } catch (error) {
+            logger.error('Error during VR session start:', error);
+        }
     });
     
     // Clean up when exiting VR
     renderer.xr.addEventListener('sessionend', () => {
-        clearInterval(spawnTargetsInterval);
-        // Remove all targets
-        for (let i = targets.length - 1; i >= 0; i--) {
-            removeTarget(i);
+        logger.log('VR session ended');
+        try {
+            clearInterval(spawnTargetsInterval);
+            // Remove all targets
+            const targetCount = targets.length;
+            for (let i = targets.length - 1; i >= 0; i--) {
+                removeTarget(i);
+            }
+            logger.log('Cleaned up', targetCount, 'targets');
+        } catch (error) {
+            logger.error('Error during VR session cleanup:', error);
         }
     });
 
@@ -331,36 +399,43 @@ function onWindowResize() {
 
 // Create a target at a random position around the player
 function spawnTarget() {
-    // Random position in a sphere around the player
-    const radius = 2 + Math.random() * 3; // Between 2 and 5 meters
-    const theta = Math.random() * Math.PI * 2; // Random angle around y-axis
-    const phi = Math.random() * Math.PI; // Random angle from top to bottom
-    
-    const x = radius * Math.sin(phi) * Math.cos(theta);
-    const y = 1 + radius * Math.cos(phi); // Keep targets above ground level
-    const z = radius * Math.sin(phi) * Math.sin(theta);
-    
-    // Create target geometry
-    const targetGeometry = new THREE.RingGeometry(0.1, 0.2, 32);
-    const targetMaterial = new THREE.MeshStandardMaterial({ 
-        color: 0xffff00,
-        side: THREE.DoubleSide,
-        emissive: 0xffff00,
-        emissiveIntensity: 0.5
-    });
-    const target = new THREE.Mesh(targetGeometry, targetMaterial);
-    
-    // Position the target
-    target.position.set(x, y, z);
-    
-    // Make the target face the player
-    target.lookAt(0, 1.6, 0);
-    
-    // Add to scene and targets array
-    scene.add(target);
-    targets.push(target);
-    
-    return target;
+    try {
+        // Random position in a sphere around the player
+        const radius = 2 + Math.random() * 3; // Between 2 and 5 meters
+        const theta = Math.random() * Math.PI * 2; // Random angle around y-axis
+        const phi = Math.random() * Math.PI; // Random angle from top to bottom
+        
+        const x = radius * Math.sin(phi) * Math.cos(theta);
+        const y = 1 + radius * Math.cos(phi); // Keep targets above ground level
+        const z = radius * Math.sin(phi) * Math.sin(theta);
+        
+        // Create target geometry
+        const targetGeometry = new THREE.RingGeometry(0.1, 0.2, 32);
+        const targetMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0xffff00,
+            side: THREE.DoubleSide,
+            emissive: 0xffff00,
+            emissiveIntensity: 0.5
+        });
+        const target = new THREE.Mesh(targetGeometry, targetMaterial);
+        
+        // Position the target
+        target.position.set(x, y, z);
+        
+        // Make the target face the player
+        target.lookAt(0, 1.6, 0);
+        
+        // Add to scene and targets array
+        scene.add(target);
+        targets.push(target);
+        
+        logger.log(`Spawned target at (${x.toFixed(2)}, ${y.toFixed(2)}, ${z.toFixed(2)}), total targets: ${targets.length}`);
+        
+        return target;
+    } catch (error) {
+        logger.error('Error in spawnTarget:', error);
+        return null;
+    }
 }
 
 // Remove a target from the scene
@@ -373,67 +448,81 @@ function removeTarget(index) {
 
 // Check if a ray from the gun hits any targets
 function checkTargetHits(controllerIndex) {
-    const controller = controllers[controllerIndex];
-    const gunModel = gunModels[controllerIndex];
-    
-    // Update raycaster from the gun's position and direction
-    const raycaster = raycasters[controllerIndex];
-    
-    // Get the gun barrel's world position and direction
-    controller.updateMatrixWorld(true);
-    
-    // Create a vector for the gun tip position (end of barrel)
-    const gunTip = new THREE.Vector3(0, 0, -0.3);
-    // Create a vector for the direction the gun is pointing
-    const rayDirection = new THREE.Vector3(0, 0, -1);
-    
-    // Apply the gun model's local transformations
-    gunTip.applyMatrix4(gunModel.matrixWorld);
-    rayDirection.transformDirection(gunModel.matrixWorld);
-    
-    raycaster.set(gunTip, rayDirection);
-    
-    // Check for intersections with targets
-    // Use a larger threshold for easier hitting (0.2 is the default)
-    const intersects = raycaster.intersectObjects(targets, false);
-    
-    // Check if any target is close to the ray
-    let hitTarget = null;
-    let hitDistance = Infinity;
-    let hitTargetIndex = -1;
-    
-    // Loop through all targets to find the closest one within range
-    for (let i = 0; i < targets.length; i++) {
-        const target = targets[i];
+    try {
+        const controller = controllers[controllerIndex];
+        const gunModel = gunModels[controllerIndex];
         
-        // Get target world position
-        const targetPosition = new THREE.Vector3();
-        target.getWorldPosition(targetPosition);
-        
-        // Calculate distance from ray to target center
-        const distance = raycaster.ray.distanceToPoint(targetPosition);
-        
-        // If within our enlarged hitbox radius (0.3 meters) and closer than any previous hit
-        if (distance < 0.3 && distance < hitDistance) {
-            hitTarget = target;
-            hitDistance = distance;
-            hitTargetIndex = i;
+        if (!controller || !gunModel) {
+            logger.warn('Missing controller or gun model for index:', controllerIndex);
+            return;
         }
-    }
-    
-    if (hitTarget) {
-        // Play hit sound
-        targetHitSound.triggerAttackRelease("C5", "16n");
         
-        // Remove the hit target
-        removeTarget(hitTargetIndex);
+        // Update raycaster from the gun's position and direction
+        const raycaster = raycasters[controllerIndex];
         
-        // Spawn a new target after a delay
-        setTimeout(() => {
-            if (targets.length < 10) {
-                spawnTarget();
+        // Get the gun barrel's world position and direction
+        controller.updateMatrixWorld(true);
+        
+        // Create a vector for the gun tip position (end of barrel)
+        const gunTip = new THREE.Vector3(0, 0, -0.3);
+        // Create a vector for the direction the gun is pointing
+        const rayDirection = new THREE.Vector3(0, 0, -1);
+        
+        // Apply the gun model's local transformations
+        gunTip.applyMatrix4(gunModel.matrixWorld);
+        rayDirection.transformDirection(gunModel.matrixWorld);
+        
+        raycaster.set(gunTip, rayDirection);
+        
+        logger.log(`Gun ${controllerIndex} position: (${gunTip.x.toFixed(2)}, ${gunTip.y.toFixed(2)}, ${gunTip.z.toFixed(2)})`);
+        logger.log(`Gun ${controllerIndex} direction: (${rayDirection.x.toFixed(2)}, ${rayDirection.y.toFixed(2)}, ${rayDirection.z.toFixed(2)})`);
+        
+        // Check for intersections with targets
+        // Use a larger threshold for easier hitting (0.2 is the default)
+        const intersects = raycaster.intersectObjects(targets, false);
+        
+        // Check if any target is close to the ray
+        let hitTarget = null;
+        let hitDistance = Infinity;
+        let hitTargetIndex = -1;
+        
+        // Loop through all targets to find the closest one within range
+        for (let i = 0; i < targets.length; i++) {
+            const target = targets[i];
+            
+            // Get target world position
+            const targetPosition = new THREE.Vector3();
+            target.getWorldPosition(targetPosition);
+            
+            // Calculate distance from ray to target center
+            const distance = raycaster.ray.distanceToPoint(targetPosition);
+            
+            // If within our enlarged hitbox radius (0.3 meters) and closer than any previous hit
+            if (distance < 0.3 && distance < hitDistance) {
+                hitTarget = target;
+                hitDistance = distance;
+                hitTargetIndex = i;
             }
-        }, 1000);
+        }
+        
+        if (hitTarget) {
+            logger.log(`Hit target ${hitTargetIndex} at distance ${hitDistance.toFixed(2)}`);
+            
+            // Play hit sound
+            targetHitSound.triggerAttackRelease("C5", "16n");
+            
+            // Remove the hit target
+            removeTarget(hitTargetIndex);
+            
+            // Spawn a new target after a delay
+            setTimeout(() => {
+                if (targets.length < 10) {
+                    spawnTarget();
+                }
+            }, 1000);
+        }
+    } catch (error) {
+        logger.error('Error in checkTargetHits:', error);
     }
 }
 

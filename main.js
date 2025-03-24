@@ -1,3 +1,9 @@
+// Import Three.js modules
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import { VRButton } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/webxr/VRButton.js';
+import { XRControllerModelFactory } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/webxr/XRControllerModelFactory.js';
+
 // Main Three.js VR application
 let scene, camera, renderer;
 let controllers = [];
@@ -21,9 +27,10 @@ function init() {
     document.body.appendChild(renderer.domElement);
 
     // Add VR button
-    document.getElementById('enter-vr-button').addEventListener('click', () => {
-        renderer.xr.enterVR();
-    });
+    document.body.appendChild(VRButton.createButton(renderer));
+    
+    // Hide custom button as we're using the standard VRButton
+    document.getElementById('enter-vr-button').style.display = 'none';
 
     // Add lighting
     const ambientLight = new THREE.AmbientLight(0x404040);
@@ -62,7 +69,7 @@ function init() {
 // Setup VR controllers
 function setupVRControllers() {
     // Controller model factory for visualizing the controllers
-    const controllerModelFactory = new THREE.XRControllerModelFactory();
+    const controllerModelFactory = new XRControllerModelFactory();
 
     // Setup controllers
     for (let i = 0; i < 2; i++) {

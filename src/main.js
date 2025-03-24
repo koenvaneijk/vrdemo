@@ -792,8 +792,11 @@ function checkTargetHits(controllerIndex) {
             // Calculate distance from ray to target center
             const distance = raycaster.ray.distanceToPoint(targetPosition);
             
-            // If within our enlarged hitbox radius (0.3 meters) and closer than any previous hit
-            if (distance < 0.3 && distance < hitDistance) {
+            // Get the target size and add a small buffer for easier hitting
+            const targetSize = target.userData.type ? target.userData.type.size * 1.2 : 0.3;
+            
+            // If within the target's hitbox radius and closer than any previous hit
+            if (distance < targetSize && distance < hitDistance) {
                 hitTarget = target;
                 hitDistance = distance;
                 hitTargetIndex = i;

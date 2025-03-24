@@ -112,8 +112,8 @@ function createGunModel(color) {
 }
 
 // Store original gun positions and rotations
-const gunOriginalPositions = [0.1, 0.1]; // Default z position from createGunModel
-const gunOriginalRotations = [-0.3, -0.3]; // Default x rotation from setupVRControllers
+let gunOriginalPositions = [0.1, 0.1]; // Default z position from createGunModel
+let gunOriginalRotations = [-0.3, -0.3]; // Default x rotation from setupVRControllers
 
 // Play shooting animation and sound
 function shootGun(index) {
@@ -130,6 +130,13 @@ function shootGun(index) {
     
     // Apply recoil animation to the gun
     const gun = gunModels[index];
+    
+    // Make sure we have the latest original position and rotation
+    // This ensures the first shot works correctly
+    if (index === 0 || index === 1) {
+        gunOriginalPositions[index] = gun.position.z;
+        gunOriginalRotations[index] = gun.rotation.x;
+    }
     
     // Recoil animation
     gun.position.z = gunOriginalPositions[index] + 0.05; // Move back
@@ -248,8 +255,9 @@ function setupVRControllers() {
         // Apply a slight rotation to align better with the controller
         gunModel.rotation.x = -0.3; // Tilt down slightly to align with hand grip
         
-        // Store the original rotation for recoil reset
-        gunOriginalRotations[i] = -0.3;
+        // Store the original position and rotation for recoil reset
+        gunOriginalPositions[i] = gunModel.position.z;
+        gunOriginalRotations[i] = gunModel.rotation.x;
         
         controller.add(gunModel);
         

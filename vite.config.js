@@ -4,6 +4,17 @@ import { defineConfig } from 'vite';
 // Array to store logs
 const logs = [];
 
+// Check if we're in development mode
+const isDev = process.env.NODE_ENV !== 'production';
+
+// Only try to read cert files in development mode
+const httpsConfig = isDev ? {
+  https: {
+    key: fs.existsSync('./certs/key.pem') ? fs.readFileSync('./certs/key.pem') : undefined,
+    cert: fs.existsSync('./certs/cert.pem') ? fs.readFileSync('./certs/cert.pem') : undefined,
+  }
+} : {};
+
 export default defineConfig({
   root: 'src',
   base: './', // Use relative paths for GitHub Pages
@@ -11,12 +22,9 @@ export default defineConfig({
     outDir: '../dist'
   },
   server: {
-    https: {
-      key: fs.readFileSync('./certs/key.pem'),
-      cert: fs.readFileSync('./certs/cert.pem'),
-    },
-    // Add middleware to handle logs
-    middlewares: [
+    ...httpsConfig,
+    // Add middleware to handle logs (only in development mode)
+    middlewares: isDev ? [
       (req, res, next) => {
         if (req.url === '/api/log' && req.method === 'POST') {
           let body = '';
@@ -59,6 +67,6 @@ export default defineConfig({
           next();
         }
       }
-    ]
+    ] : []
   }
 });

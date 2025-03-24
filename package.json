@@ -7,16 +7,14 @@
     "dev": "vite --host",
     "build": "vite build",
     "preview": "vite preview --host",
-    "generate-certs": "mkdir -p certs && openssl req -x509 -newkey rsa:2048 -keyout certs/key.pem -out certs/cert.pem -days 365 -nodes -subj '/CN=localhost'",
-    "deploy": "npm run build && gh-pages -d dist"
+    "generate-certs": "mkdir -p certs && openssl req -x509 -newkey rsa:2048 -keyout certs/key.pem -out certs/cert.pem -days 365 -nodes -subj '/CN=localhost'"
   },
   "dependencies": {
     "three": "^0.160.1",
     "tone": "^14.9.17"
   },
   "devDependencies": {
-    "vite": "^5.4.15",
-    "gh-pages": "^6.1.1"
+    "vite": "^5.4.15"
   },
   "main": "main.js",
   "keywords": [],

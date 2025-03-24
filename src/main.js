@@ -630,7 +630,8 @@ function spawnTarget() {
         });
         const targetMesh = new THREE.Mesh(targetGeometry, targetMaterial);
         
-        // Add the target mesh to the group
+        // Position the target mesh exactly at the center of the group
+        targetMesh.position.y = 0;
         targetGroup.add(targetMesh);
         
         // Create health bar
@@ -638,7 +639,7 @@ function spawnTarget() {
         healthBarGroup.position.y = targetType.size * 1.5; // Position above the target
         targetGroup.add(healthBarGroup);
         
-        // Position the target group on the ground (y = radius to place bottom of sphere on ground)
+        // Position the target group with bottom of sphere exactly on ground
         targetGroup.position.set(x, targetType.size, z);
         
         // Add random movement direction
@@ -1067,15 +1068,16 @@ function addEnvironmentElements() {
 function createLowPolyTree(x, y, z) {
     const treeGroup = new THREE.Group();
     
-    // Tree trunk
-    const trunkGeometry = new THREE.CylinderGeometry(0.2, 0.4, 2, 6);
+    // Tree trunk - position at ground level with half height above ground
+    const trunkHeight = 2;
+    const trunkGeometry = new THREE.CylinderGeometry(0.2, 0.4, trunkHeight, 6);
     const trunkMaterial = new THREE.MeshStandardMaterial({
         color: 0x8B4513, // Saddle brown
         roughness: 1.0,
         flatShading: true
     });
     const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-    trunk.position.y = 1; // Half of trunk height
+    trunk.position.y = trunkHeight / 2; // Position exactly half height above ground
     treeGroup.add(trunk);
     
     // Tree foliage (cone)
@@ -1086,10 +1088,10 @@ function createLowPolyTree(x, y, z) {
         flatShading: true
     });
     const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
-    foliage.position.y = 3.5;
+    foliage.position.y = trunkHeight + 1.5; // Position at top of trunk + half cone height
     treeGroup.add(foliage);
     
-    // Position the tree - ensure y=0 is at ground level
+    // Position the tree directly on the ground (y=0)
     treeGroup.position.set(x, 0, z);
     
     // Add some random rotation and scale
@@ -1111,8 +1113,10 @@ function createLowPolyRock(x, y, z) {
     });
     const rock = new THREE.Mesh(rockGeometry, rockMaterial);
     
-    // Position the rock - ensure bottom is at ground level
-    rock.position.set(x, rockSize * 0.5, z);
+    // Calculate the lowest point of the dodecahedron to ensure it sits on the ground
+    // For a dodecahedron, we need to adjust the y position to account for its shape
+    // The factor 0.4 is an approximation that works well for dodecahedrons
+    rock.position.set(x, rockSize * 0.4, z);
     
     // Add some random rotation and scale
     rock.rotation.set(
@@ -1138,7 +1142,8 @@ function createDistantMountains() {
         const z = Math.sin(angle) * radius;
         
         // Create a mountain
-        const mountainGeometry = new THREE.ConeGeometry(10 + Math.random() * 5, 15 + Math.random() * 10, 5);
+        const mountainHeight = 15 + Math.random() * 10;
+        const mountainGeometry = new THREE.ConeGeometry(10 + Math.random() * 5, mountainHeight, 5);
         const mountainMaterial = new THREE.MeshStandardMaterial({
             color: 0x4682B4, // Steel blue
             roughness: 1.0,
@@ -1146,8 +1151,8 @@ function createDistantMountains() {
         });
         const mountain = new THREE.Mesh(mountainGeometry, mountainMaterial);
         
-        // Position the mountain
-        mountain.position.set(x, 0, z);
+        // Position the mountain with half height above ground
+        mountain.position.set(x, mountainHeight / 2, z);
         
         // Add some random rotation
         mountain.rotation.y = Math.random() * Math.PI * 2;

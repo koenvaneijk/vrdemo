@@ -111,10 +111,6 @@ function createGunModel(color) {
     return gunGroup;
 }
 
-// Store original gun positions and rotations
-let gunOriginalPositions = [0.1, 0.1]; // Default z position from createGunModel
-let gunOriginalRotations = [-0.3, -0.3]; // Default x rotation from setupVRControllers
-
 // Play shooting animation and sound
 function shootGun(index) {
     if (isShooting[index]) return; // Already shooting
@@ -128,52 +124,10 @@ function shootGun(index) {
     const flash = muzzleFlashes[index];
     flash.material.opacity = 1.0;
     
-    // Apply recoil animation to the gun
-    const gun = gunModels[index];
-    
-    // Make sure we have the latest original position and rotation
-    // This ensures the first shot works correctly
-    if (index === 0 || index === 1) {
-        gunOriginalPositions[index] = gun.position.z;
-        gunOriginalRotations[index] = gun.rotation.x;
-    }
-    
-    // Recoil animation
-    gun.position.z = gunOriginalPositions[index] + 0.05; // Move back
-    gun.rotation.x = gunOriginalRotations[index] + 0.1; // Rotate up slightly
-    
-    // Reset after a short delay
+    // Hide muzzle flash after a short delay
     setTimeout(() => {
-        // Hide muzzle flash
         flash.material.opacity = 0.0;
-        
-        // Reset gun position and rotation (with smooth animation)
-        const duration = 200; // ms
-        const startTime = Date.now();
-        const recoilPositionZ = gun.position.z;
-        const recoilRotationX = gun.rotation.x;
-        
-        function animateReset() {
-            const elapsed = Date.now() - startTime;
-            const progress = Math.min(elapsed / duration, 1);
-            
-            // Ease out cubic function for smooth animation
-            const t = 1 - Math.pow(1 - progress, 3);
-            
-            gun.position.z = recoilPositionZ - (0.05 * t);
-            gun.rotation.x = recoilRotationX - (0.1 * t);
-            
-            if (progress < 1) {
-                requestAnimationFrame(animateReset);
-            } else {
-                // Ensure we're exactly at the original position when done
-                gun.position.z = gunOriginalPositions[index];
-                gun.rotation.x = gunOriginalRotations[index];
-                isShooting[index] = false;
-            }
-        }
-        
-        animateReset();
+        isShooting[index] = false;
     }, 100);
 }
 
@@ -255,10 +209,6 @@ function setupVRControllers() {
         // Apply a slight rotation to align better with the controller
         gunModel.rotation.x = -0.3; // Tilt down slightly to align with hand grip
         
-        // Store the original position and rotation for recoil reset
-        gunOriginalPositions[i] = gunModel.position.z;
-        gunOriginalRotations[i] = gunModel.rotation.x;
-        
         controller.add(gunModel);
         
         // Create pointer line
@@ -309,13 +259,9 @@ function setupVRControllers() {
             shootGun(i);
         });
         
-        // Also listen for selectend to ensure we can shoot again
+        // Reset shooting state when trigger is released
         controller.addEventListener('selectend', () => {
-            // Make sure shooting state is reset when trigger is released
-            // This is a safety measure in case the timeout in shootGun doesn't complete
-            setTimeout(() => {
-                isShooting[i] = false;
-            }, 50);
+            isShooting[i] = false;
         });
         
         // Store references

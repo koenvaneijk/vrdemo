@@ -648,7 +648,6 @@ function getTargetTypeName(targetType) {
     if (targetType === TARGET_TYPES.LARGE) return "LARGE";
     return "UNKNOWN";
 }
-}
 
 // Remove a target from the scene
 function removeTarget(index) {

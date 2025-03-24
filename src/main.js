@@ -83,71 +83,93 @@ function initSounds() {
     
     // Create shooting sound for each gun
     for (let i = 0; i < 2; i++) {
-        // Create a more complex gunshot sound using multiple synths and effects
+        // Create a more realistic gunshot sound using multiple synths and effects
         
-        // Base drum sound for the initial impact
+        // Base drum sound for the initial impact - deeper and more powerful
         const membraneSynth = new Tone.MembraneSynth({
-            pitchDecay: 0.01,  // Faster pitch decay
-            octaves: 6,        // Wider range
+            pitchDecay: 0.05,
+            octaves: 10,        // Wider range for more bass
             oscillator: {
-                type: "triangle"  // Different waveform
+                type: "sine"    // Sine wave for cleaner bass
             },
             envelope: {
                 attack: 0.001,
-                decay: 0.1,
-                sustain: 0.01,
-                release: 0.1,
+                decay: 0.2,
+                sustain: 0.02,
+                release: 0.4,
                 attackCurve: "exponential"
             }
         });
         
-        // Noise component for the "blast" effect
+        // Noise component for the "blast" effect - louder and more explosive
         const noise = new Tone.NoiseSynth({
+            noise: {
+                type: "brown"   // Brown noise has more low-frequency content
+            },
+            envelope: {
+                attack: 0.001,
+                decay: 0.3,     // Longer decay
+                sustain: 0.1,
+                release: 0.2
+            }
+        });
+        
+        // Second noise layer for the initial crack/explosion
+        const crackNoise = new Tone.NoiseSynth({
             noise: {
                 type: "white"
             },
             envelope: {
                 attack: 0.001,
-                decay: 0.15,
+                decay: 0.08,
                 sustain: 0,
                 release: 0.05
             }
         });
         
-        // Metal component for the mechanical "click" sound
-        const metalSynth = new Tone.MetalSynth({
-            frequency: 200,
-            envelope: {
-                attack: 0.001,
-                decay: 0.05,
-                release: 0.05
+        // Low frequency oscillator for the rumble
+        const lowSynth = new Tone.Synth({
+            oscillator: {
+                type: "sine"
             },
-            harmonicity: 3.1,
-            modulationIndex: 16,
-            resonance: 4000,
-            octaves: 1
+            envelope: {
+                attack: 0.005,
+                decay: 0.4,
+                sustain: 0.01,
+                release: 0.4
+            }
         });
         
         // Effects chain
-        const distortion = new Tone.Distortion(0.9);
-        const reverb = new Tone.Reverb(0.2);
-        reverb.wet.value = 0.2;
-        const compressor = new Tone.Compressor(-20, 3);
-        const volume = new Tone.Volume(-10); // Adjust overall volume
+        const distortion = new Tone.Distortion(0.8);
+        const reverb = new Tone.Reverb(1.5);  // Longer reverb
+        reverb.wet.value = 0.3;
+        const compressor = new Tone.Compressor(-15, 5);  // More compression
+        const lowpass = new Tone.Filter(2000, "lowpass");  // Filter high frequencies
+        const volume = new Tone.Volume(-5);  // Louder overall volume
         
         // Connect everything
-        membraneSynth.chain(distortion, reverb, compressor, volume, Tone.Destination);
+        membraneSynth.chain(distortion, lowpass, compressor, volume, Tone.Destination);
         noise.chain(distortion, reverb, compressor, volume, Tone.Destination);
-        metalSynth.chain(distortion, compressor, volume, Tone.Destination);
+        crackNoise.chain(distortion, compressor, volume, Tone.Destination);
+        lowSynth.chain(lowpass, reverb, compressor, volume, Tone.Destination);
         
-        // Create a function to trigger all components with slight timing differences
+        // Create a function to trigger all components with precise timing
         const gunshot = {
             triggerAttackRelease: function(note, duration) {
-                membraneSynth.triggerAttackRelease(note, duration);
-                noise.triggerAttackRelease(duration);
-                // Slight delay for the mechanical click
+                // Initial crack/explosion
+                crackNoise.triggerAttackRelease("16n");
+                
+                // Main bass impact (slightly delayed)
                 setTimeout(() => {
-                    metalSynth.triggerAttackRelease(note, "32n");
+                    membraneSynth.triggerAttackRelease(note, duration);
+                    // Low rumble
+                    lowSynth.triggerAttackRelease(note, "8n");
+                }, 5);
+                
+                // Sustained noise component
+                setTimeout(() => {
+                    noise.triggerAttackRelease(duration);
                 }, 10);
             }
         };
@@ -231,7 +253,7 @@ function shootGun(index) {
         isShooting[index] = true;
         
         // Play sound
-        shootingSounds[index].triggerAttackRelease("C1", "8n");
+        shootingSounds[index].triggerAttackRelease("A0", "8n");
         
         // Show muzzle flash
         const flash = muzzleFlashes[index];

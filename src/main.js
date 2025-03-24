@@ -6,31 +6,72 @@ import { XRControllerModelFactory } from 'three/examples/jsm/webxr/XRControllerM
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import * as Tone from 'tone';
 
-// Create a custom logger that sends logs to the server
+// Create a custom logger that adapts based on environment
 const logger = {
     log: function(...args) {
         console.log(...args);
-        fetch('/api/log', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ level: 'log', message: args.map(arg => String(arg)).join(' ') })
-        }).catch(e => console.error('Failed to send log to server:', e));
+        
+        // In development, send to server; in production (GitHub Pages), store locally
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            fetch('./api/log', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ level: 'log', message: args.map(arg => String(arg)).join(' ') })
+            }).catch(e => console.error('Failed to send log to server:', e));
+        } else {
+            // Store in localStorage for GitHub Pages
+            const logs = JSON.parse(localStorage.getItem('appLogs') || '[]');
+            logs.push({
+                timestamp: new Date().toISOString(),
+                level: 'log',
+                message: args.map(arg => String(arg)).join(' ')
+            });
+            // Keep only the last 100 logs
+            if (logs.length > 100) logs.shift();
+            localStorage.setItem('appLogs', JSON.stringify(logs));
+        }
     },
     error: function(...args) {
         console.error(...args);
-        fetch('/api/log', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ level: 'error', message: args.map(arg => String(arg)).join(' ') })
-        }).catch(e => console.error('Failed to send error to server:', e));
+        
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            fetch('./api/log', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ level: 'error', message: args.map(arg => String(arg)).join(' ') })
+            }).catch(e => console.error('Failed to send error to server:', e));
+        } else {
+            // Store in localStorage for GitHub Pages
+            const logs = JSON.parse(localStorage.getItem('appLogs') || '[]');
+            logs.push({
+                timestamp: new Date().toISOString(),
+                level: 'error',
+                message: args.map(arg => String(arg)).join(' ')
+            });
+            if (logs.length > 100) logs.shift();
+            localStorage.setItem('appLogs', JSON.stringify(logs));
+        }
     },
     warn: function(...args) {
         console.warn(...args);
-        fetch('/api/log', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ level: 'warn', message: args.map(arg => String(arg)).join(' ') })
-        }).catch(e => console.error('Failed to send warning to server:', e));
+        
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            fetch('./api/log', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ level: 'warn', message: args.map(arg => String(arg)).join(' ') })
+            }).catch(e => console.error('Failed to send warning to server:', e));
+        } else {
+            // Store in localStorage for GitHub Pages
+            const logs = JSON.parse(localStorage.getItem('appLogs') || '[]');
+            logs.push({
+                timestamp: new Date().toISOString(),
+                level: 'warn',
+                message: args.map(arg => String(arg)).join(' ')
+            });
+            if (logs.length > 100) logs.shift();
+            localStorage.setItem('appLogs', JSON.stringify(logs));
+        }
     }
 };
 

@@ -8,6 +8,7 @@ import { XRControllerModelFactory } from 'three/examples/jsm/webxr/XRControllerM
 let scene, camera, renderer;
 let controllers = [];
 let handSpheres = [];
+let pointerLines = [];
 
 // Initialize the scene, camera, and renderer
 function init() {
@@ -87,9 +88,22 @@ function setupVRControllers() {
         const handSphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
         controller.add(handSphere);
         
+        // Create pointer line
+        const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(0, 0, -5) // 5 meters forward
+        ]);
+        const lineMaterial = new THREE.LineBasicMaterial({ 
+            color: i === 0 ? 0xff0000 : 0x0000ff,
+            linewidth: 2
+        });
+        const pointerLine = new THREE.Line(lineGeometry, lineMaterial);
+        controller.add(pointerLine);
+        
         // Store references
         controllers.push(controller);
         handSpheres.push(handSphere);
+        pointerLines.push(pointerLine);
 
         // Add controller grip for model
         const controllerGrip = renderer.xr.getControllerGrip(i);
@@ -108,6 +122,12 @@ function onWindowResize() {
 
 // Animation loop
 function animate() {
+    // Update pointer lines if needed
+    for (let i = 0; i < controllers.length; i++) {
+        // You can add more complex logic here if needed
+        // For example, casting rays to detect intersections
+    }
+    
     renderer.render(scene, camera);
 }
 

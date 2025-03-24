@@ -15,6 +15,10 @@ let gunModelLeft, gunModelRight;
 let shootingSounds = [];
 let muzzleFlashes = [];
 let isShooting = [false, false]; // Track shooting state for each controller
+let targets = []; // Array to store target objects
+let targetHitSound; // Sound for when a target is hit
+let raycasters = [new THREE.Raycaster(), new THREE.Raycaster()]; // Raycasters for collision detection
+let spawnTargetsInterval; // Interval for spawning targets
 
 // Initialize Tone.js sound effects
 function initSounds() {
@@ -57,6 +61,20 @@ function initSounds() {
         
         shootingSounds.push(synth);
     }
+    
+    // Create target hit sound
+    targetHitSound = new Tone.MetalSynth({
+        frequency: 200,
+        envelope: {
+            attack: 0.001,
+            decay: 0.1,
+            release: 0.1
+        },
+        harmonicity: 5.1,
+        modulationIndex: 32,
+        resonance: 4000,
+        octaves: 1.5
+    }).toDestination();
 }
 
 // Create a simple gun model
@@ -124,6 +142,9 @@ function shootGun(index) {
     const flash = muzzleFlashes[index];
     flash.material.opacity = 1.0;
     
+    // Check for target hits
+    checkTargetHits(index);
+    
     // Hide muzzle flash after a short delay
     setTimeout(() => {
         flash.material.opacity = 0.0;
@@ -183,6 +204,30 @@ function init() {
     
     // Setup VR controllers
     setupVRControllers();
+    
+    // Start spawning targets when entering VR
+    renderer.xr.addEventListener('sessionstart', () => {
+        // Spawn initial targets
+        for (let i = 0; i < 5; i++) {
+            spawnTarget();
+        }
+        
+        // Set up interval to spawn new targets
+        spawnTargetsInterval = setInterval(() => {
+            if (targets.length < 10) { // Limit the number of targets
+                spawnTarget();
+            }
+        }, 3000); // Spawn a new target every 3 seconds
+    });
+    
+    // Clean up when exiting VR
+    renderer.xr.addEventListener('sessionend', () => {
+        clearInterval(spawnTargetsInterval);
+        // Remove all targets
+        for (let i = targets.length - 1; i >= 0; i--) {
+            removeTarget(i);
+        }
+    });
 
     // Handle window resize
     window.addEventListener('resize', onWindowResize, false);
@@ -284,16 +329,101 @@ function onWindowResize() {
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
+// Create a target at a random position around the player
+function spawnTarget() {
+    // Random position in a sphere around the player
+    const radius = 2 + Math.random() * 3; // Between 2 and 5 meters
+    const theta = Math.random() * Math.PI * 2; // Random angle around y-axis
+    const phi = Math.random() * Math.PI; // Random angle from top to bottom
+    
+    const x = radius * Math.sin(phi) * Math.cos(theta);
+    const y = 1 + radius * Math.cos(phi); // Keep targets above ground level
+    const z = radius * Math.sin(phi) * Math.sin(theta);
+    
+    // Create target geometry
+    const targetGeometry = new THREE.RingGeometry(0.1, 0.2, 32);
+    const targetMaterial = new THREE.MeshStandardMaterial({ 
+        color: 0xffff00,
+        side: THREE.DoubleSide,
+        emissive: 0xffff00,
+        emissiveIntensity: 0.5
+    });
+    const target = new THREE.Mesh(targetGeometry, targetMaterial);
+    
+    // Position the target
+    target.position.set(x, y, z);
+    
+    // Make the target face the player
+    target.lookAt(0, 1.6, 0);
+    
+    // Add to scene and targets array
+    scene.add(target);
+    targets.push(target);
+    
+    return target;
+}
+
+// Remove a target from the scene
+function removeTarget(index) {
+    if (index >= 0 && index < targets.length) {
+        scene.remove(targets[index]);
+        targets.splice(index, 1);
+    }
+}
+
+// Check if a ray from the gun hits any targets
+function checkTargetHits(controllerIndex) {
+    const controller = controllers[controllerIndex];
+    
+    // Update raycaster from the gun's position and direction
+    const raycaster = raycasters[controllerIndex];
+    const gunTip = new THREE.Vector3(0, 0, -0.3); // Position at the end of the gun barrel
+    const rayDirection = new THREE.Vector3(0, 0, -1); // Direction the gun is pointing
+    
+    // Transform the position and direction to world space
+    controller.updateMatrixWorld(true);
+    gunTip.applyMatrix4(controller.matrixWorld);
+    rayDirection.transformDirection(controller.matrixWorld);
+    
+    raycaster.set(gunTip, rayDirection);
+    
+    // Check for intersections with targets
+    const intersects = raycaster.intersectObjects(targets);
+    
+    if (intersects.length > 0) {
+        // Find the target in our array
+        const hitTarget = intersects[0].object;
+        const targetIndex = targets.indexOf(hitTarget);
+        
+        if (targetIndex !== -1) {
+            // Play hit sound
+            targetHitSound.triggerAttackRelease("C5", "16n");
+            
+            // Remove the hit target
+            removeTarget(targetIndex);
+            
+            // Spawn a new target after a delay
+            setTimeout(() => {
+                if (targets.length < 10) {
+                    spawnTarget();
+                }
+            }, 1000);
+        }
+    }
+}
+
 // Animation loop
 function animate() {
     // Update pointer lines if needed
     for (let i = 0; i < controllers.length; i++) {
-        // You can add more complex logic here if needed
-        // For example, casting rays to detect intersections with targets
-        
         // The pointer line is already attached to the controller, which has the gun model
         // So it will automatically follow the gun's position and orientation
     }
+    
+    // Rotate targets slightly to make them more visible
+    targets.forEach(target => {
+        target.rotation.z += 0.01;
+    });
     
     renderer.render(scene, camera);
 }

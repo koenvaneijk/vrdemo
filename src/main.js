@@ -57,6 +57,7 @@ let targets = []; // Array to store target objects
 let targetHitSound; // Sound for when a target is hit
 let raycasters = [new THREE.Raycaster(), new THREE.Raycaster()]; // Raycasters for collision detection
 let spawnTargetsInterval; // Interval for spawning targets
+let moveTargetsInterval; // Interval for moving targets
 let score = 0; // Player's score
 let scoreText; // 3D text for displaying score
 
@@ -379,8 +380,8 @@ function init() {
     directionalLight.position.set(1, 1, 1).normalize();
     scene.add(directionalLight);
 
-    // Add a floor
-    const floorGeometry = new THREE.PlaneGeometry(10, 10);
+    // Add a larger floor
+    const floorGeometry = new THREE.PlaneGeometry(50, 50);
     const floorMaterial = new THREE.MeshStandardMaterial({ 
         color: 0x808080,
         roughness: 0.8,
@@ -392,7 +393,7 @@ function init() {
     scene.add(floor);
 
     // Add a grid helper
-    const gridHelper = new THREE.GridHelper(10, 10);
+    const gridHelper = new THREE.GridHelper(50, 50);
     scene.add(gridHelper);
     
     // Create score display
@@ -420,6 +421,11 @@ function init() {
                 }
             }, 3000); // Spawn a new target every 3 seconds
             
+            // Set up interval to move targets
+            moveTargetsInterval = setInterval(() => {
+                moveTargets();
+            }, 50); // Update target positions every 50ms
+            
             logger.log('Initial targets spawned:', targets.length);
         } catch (error) {
             logger.error('Error during VR session start:', error);
@@ -431,6 +437,7 @@ function init() {
         logger.log('VR session ended');
         try {
             clearInterval(spawnTargetsInterval);
+            clearInterval(moveTargetsInterval);
             // Remove all targets
             const targetCount = targets.length;
             for (let i = targets.length - 1; i >= 0; i--) {
@@ -547,39 +554,41 @@ function onWindowResize() {
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-// Create a target at a random position around the player
+// Create a target at a random position on the ground
 function spawnTarget() {
     try {
-        // Random position in a sphere around the player
-        const radius = 2 + Math.random() * 3; // Between 2 and 5 meters
-        const theta = Math.random() * Math.PI * 2; // Random angle around y-axis
-        const phi = Math.random() * Math.PI; // Random angle from top to bottom
+        // Random position on the ground plane
+        const x = (Math.random() - 0.5) * 40; // -20 to 20 meters
+        const z = (Math.random() - 0.5) * 40; // -20 to 20 meters
         
-        const x = radius * Math.sin(phi) * Math.cos(theta);
-        const y = 1 + radius * Math.cos(phi); // Keep targets above ground level
-        const z = radius * Math.sin(phi) * Math.sin(theta);
-        
-        // Create target geometry
-        const targetGeometry = new THREE.RingGeometry(0.1, 0.2, 32);
+        // Create target geometry (sphere)
+        const targetGeometry = new THREE.SphereGeometry(0.3, 32, 32);
         const targetMaterial = new THREE.MeshStandardMaterial({ 
             color: 0xffff00,
-            side: THREE.DoubleSide,
             emissive: 0xffff00,
-            emissiveIntensity: 0.5
+            emissiveIntensity: 0.3,
+            roughness: 0.4
         });
         const target = new THREE.Mesh(targetGeometry, targetMaterial);
         
-        // Position the target
-        target.position.set(x, y, z);
+        // Position the target on the ground (y=0.3 to place bottom of sphere on ground)
+        target.position.set(x, 0.3, z);
         
-        // Make the target face the player
-        target.lookAt(0, 1.6, 0);
+        // Add random movement direction
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 0.02 + Math.random() * 0.03; // Random speed between 0.02 and 0.05 units per frame
+        
+        // Store movement data with the target
+        target.userData = {
+            velocity: new THREE.Vector2(Math.cos(angle) * speed, Math.sin(angle) * speed),
+            lastPosition: new THREE.Vector3(x, 0.3, z)
+        };
         
         // Add to scene and targets array
         scene.add(target);
         targets.push(target);
         
-        logger.log(`Spawned target at (${x.toFixed(2)}, ${y.toFixed(2)}, ${z.toFixed(2)}), total targets: ${targets.length}`);
+        logger.log(`Spawned target at (${x.toFixed(2)}, 0.3, ${z.toFixed(2)}), total targets: ${targets.length}`);
         
         return target;
     } catch (error) {
@@ -732,6 +741,36 @@ function createFloatingScore(position, points) {
     window.floatingScores.push(scoreIndicator);
 }
 
+// Move targets along the ground
+function moveTargets() {
+    try {
+        for (let i = 0; i < targets.length; i++) {
+            const target = targets[i];
+            const velocity = target.userData.velocity;
+            
+            // Update position based on velocity
+            target.position.x += velocity.x;
+            target.position.z += velocity.y;
+            
+            // Bounce off boundaries
+            const boundarySize = 24; // Keep within a 48x48 area (slightly smaller than the 50x50 floor)
+            if (Math.abs(target.position.x) > boundarySize) {
+                velocity.x *= -1; // Reverse x direction
+                target.position.x = Math.sign(target.position.x) * boundarySize; // Keep within bounds
+            }
+            if (Math.abs(target.position.z) > boundarySize) {
+                velocity.y *= -1; // Reverse z direction
+                target.position.z = Math.sign(target.position.z) * boundarySize; // Keep within bounds
+            }
+            
+            // Update last position
+            target.userData.lastPosition.copy(target.position);
+        }
+    } catch (error) {
+        logger.error('Error in moveTargets:', error);
+    }
+}
+
 // Animation loop
 function animate() {
     // Update raycasters to match pointer lines
@@ -751,11 +790,6 @@ function animate() {
             raycasters[i].set(gunTip, rayDirection);
         }
     }
-    
-    // Rotate targets slightly to make them more visible
-    targets.forEach(target => {
-        target.rotation.z += 0.01;
-    });
     
     // Animate floating score indicators
     if (window.floatingScores) {

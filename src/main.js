@@ -57,6 +57,8 @@ let targets = []; // Array to store target objects
 let targetHitSound; // Sound for when a target is hit
 let raycasters = [new THREE.Raycaster(), new THREE.Raycaster()]; // Raycasters for collision detection
 let spawnTargetsInterval; // Interval for spawning targets
+let score = 0; // Player's score
+let scoreText; // 3D text for displaying score
 
 // Initialize Tone.js sound effects
 function initSounds() {
@@ -206,6 +208,156 @@ function shootGun(index) {
     }
 }
 
+// Create a 3D text display for the score
+function createScoreDisplay() {
+    // Load font
+    const loader = new THREE.FontLoader();
+    
+    // Use a callback to handle the asynchronous font loading
+    loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', function(font) {
+        const textGeometry = new THREE.TextGeometry('Score: 0', {
+            font: font,
+            size: 0.2,
+            height: 0.02,
+            curveSegments: 12,
+            bevelEnabled: false
+        });
+        
+        // Center the text geometry
+        textGeometry.computeBoundingBox();
+        const textWidth = textGeometry.boundingBox.max.x - textGeometry.boundingBox.min.x;
+        textGeometry.translate(-textWidth / 2, 0, 0);
+        
+        const textMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0xffffff,
+            emissive: 0x444444
+        });
+        
+        scoreText = new THREE.Mesh(textGeometry, textMaterial);
+        
+        // Position the score display in front of the player
+        scoreText.position.set(0, 2.2, -2);
+        scoreText.rotation.x = -0.2; // Tilt slightly for better visibility
+        
+        scene.add(scoreText);
+        logger.log('Score display created');
+    }, 
+    // onProgress callback
+    function(xhr) {
+        logger.log('Font loading: ' + (xhr.loaded / xhr.total * 100) + '%');
+    },
+    // onError callback
+    function(err) {
+        logger.error('Error loading font:', err);
+        // Create a fallback score display using a simple plane with texture
+        createFallbackScoreDisplay();
+    });
+}
+
+// Create a fallback score display if font loading fails
+function createFallbackScoreDisplay() {
+    // Create canvas for the score
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 128;
+    const context = canvas.getContext('2d');
+    
+    // Fill background
+    context.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw text
+    context.font = 'Bold 36px Arial';
+    context.fillStyle = 'white';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText('Score: 0', canvas.width / 2, canvas.height / 2);
+    
+    // Create texture from canvas
+    const texture = new THREE.CanvasTexture(canvas);
+    
+    // Create plane with the texture
+    const geometry = new THREE.PlaneGeometry(0.8, 0.4);
+    const material = new THREE.MeshBasicMaterial({ 
+        map: texture,
+        transparent: true
+    });
+    
+    scoreText = new THREE.Mesh(geometry, material);
+    scoreText.position.set(0, 2.2, -2);
+    scoreText.rotation.x = -0.2;
+    
+    // Store the canvas context for later updates
+    scoreText.userData = { 
+        canvas: canvas,
+        context: context,
+        texture: texture
+    };
+    
+    scene.add(scoreText);
+    logger.log('Fallback score display created');
+}
+
+// Update the score display
+function updateScoreDisplay() {
+    if (!scoreText) return;
+    
+    // Check if we're using the fallback display (with canvas texture)
+    if (scoreText.userData && scoreText.userData.context) {
+        const context = scoreText.userData.context;
+        const canvas = scoreText.userData.canvas;
+        
+        // Clear canvas
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Redraw background
+        context.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw updated score
+        context.font = 'Bold 36px Arial';
+        context.fillStyle = 'white';
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillText(`Score: ${score}`, canvas.width / 2, canvas.height / 2);
+        
+        // Update texture
+        scoreText.userData.texture.needsUpdate = true;
+    } else {
+        // If using 3D text, we need to remove the old text and create a new one
+        // This is because TextGeometry can't be updated dynamically
+        scene.remove(scoreText);
+        
+        // Load font again (it should be cached now)
+        const loader = new THREE.FontLoader();
+        loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', function(font) {
+            const textGeometry = new THREE.TextGeometry(`Score: ${score}`, {
+                font: font,
+                size: 0.2,
+                height: 0.02,
+                curveSegments: 12,
+                bevelEnabled: false
+            });
+            
+            // Center the text geometry
+            textGeometry.computeBoundingBox();
+            const textWidth = textGeometry.boundingBox.max.x - textGeometry.boundingBox.min.x;
+            textGeometry.translate(-textWidth / 2, 0, 0);
+            
+            const textMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0xffffff,
+                emissive: 0x444444
+            });
+            
+            scoreText = new THREE.Mesh(textGeometry, textMaterial);
+            scoreText.position.set(0, 2.2, -2);
+            scoreText.rotation.x = -0.2;
+            
+            scene.add(scoreText);
+        });
+    }
+}
+
 // Initialize the scene, camera, and renderer
 function init() {
     // Create scene
@@ -252,7 +404,10 @@ function init() {
     // Add a grid helper
     const gridHelper = new THREE.GridHelper(10, 10);
     scene.add(gridHelper);
-
+    
+    // Create score display
+    createScoreDisplay();
+    
     // Initialize sound effects
     initSounds();
     
@@ -292,6 +447,11 @@ function init() {
                 removeTarget(i);
             }
             logger.log('Cleaned up', targetCount, 'targets');
+            logger.log(`Final score: ${score}`);
+            
+            // Reset score for next session
+            score = 0;
+            updateScoreDisplay();
         } catch (error) {
             logger.error('Error during VR session cleanup:', error);
         }
@@ -511,6 +671,16 @@ function checkTargetHits(controllerIndex) {
             // Play hit sound
             targetHitSound.triggerAttackRelease("C5", "16n");
             
+            // Increment score
+            score += 10;
+            logger.log(`Score increased to ${score}`);
+            
+            // Update score display
+            updateScoreDisplay();
+            
+            // Create a floating score indicator at the hit position
+            createFloatingScore(hitTarget.position, 10);
+            
             // Remove the hit target
             removeTarget(hitTargetIndex);
             
@@ -524,6 +694,52 @@ function checkTargetHits(controllerIndex) {
     } catch (error) {
         logger.error('Error in checkTargetHits:', error);
     }
+}
+
+// Create a floating score indicator that rises and fades
+function createFloatingScore(position, points) {
+    // Create a canvas for the score text
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 64;
+    const context = canvas.getContext('2d');
+    
+    // Draw the score text
+    context.font = 'Bold 32px Arial';
+    context.fillStyle = 'yellow';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText(`+${points}`, canvas.width / 2, canvas.height / 2);
+    
+    // Create texture from canvas
+    const texture = new THREE.CanvasTexture(canvas);
+    
+    // Create a plane with the texture
+    const geometry = new THREE.PlaneGeometry(0.5, 0.25);
+    const material = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        depthTest: false,
+        side: THREE.DoubleSide
+    });
+    
+    const scoreIndicator = new THREE.Mesh(geometry, material);
+    
+    // Position it at the hit location
+    scoreIndicator.position.copy(position);
+    
+    // Add to scene
+    scene.add(scoreIndicator);
+    
+    // Store creation time for animation
+    scoreIndicator.userData = {
+        createdAt: Date.now(),
+        lifespan: 1000 // 1 second lifespan
+    };
+    
+    // Add to a list for animation
+    if (!window.floatingScores) window.floatingScores = [];
+    window.floatingScores.push(scoreIndicator);
 }
 
 // Animation loop
@@ -550,6 +766,29 @@ function animate() {
     targets.forEach(target => {
         target.rotation.z += 0.01;
     });
+    
+    // Animate floating score indicators
+    if (window.floatingScores) {
+        const now = Date.now();
+        for (let i = window.floatingScores.length - 1; i >= 0; i--) {
+            const indicator = window.floatingScores[i];
+            const age = now - indicator.userData.createdAt;
+            
+            if (age > indicator.userData.lifespan) {
+                // Remove expired indicators
+                scene.remove(indicator);
+                window.floatingScores.splice(i, 1);
+            } else {
+                // Animate rising and fading
+                const progress = age / indicator.userData.lifespan;
+                indicator.position.y += 0.01; // Rise up
+                indicator.material.opacity = 1 - progress; // Fade out
+                
+                // Make it face the camera
+                indicator.lookAt(camera.position);
+            }
+        }
+    }
     
     renderer.render(scene, camera);
 }

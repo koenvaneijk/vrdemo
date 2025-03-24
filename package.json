@@ -4,9 +4,9 @@
   "description": "VR Hands Demo with Three.js",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview --host"
   },
   "dependencies": {
     "three": "^0.160.1"

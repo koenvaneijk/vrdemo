@@ -374,16 +374,22 @@ function removeTarget(index) {
 // Check if a ray from the gun hits any targets
 function checkTargetHits(controllerIndex) {
     const controller = controllers[controllerIndex];
+    const gunModel = gunModels[controllerIndex];
     
     // Update raycaster from the gun's position and direction
     const raycaster = raycasters[controllerIndex];
-    const gunTip = new THREE.Vector3(0, 0, -0.3); // Position at the end of the gun barrel
-    const rayDirection = new THREE.Vector3(0, 0, -1); // Direction the gun is pointing
     
-    // Transform the position and direction to world space
+    // Get the gun barrel's world position and direction
     controller.updateMatrixWorld(true);
-    gunTip.applyMatrix4(controller.matrixWorld);
-    rayDirection.transformDirection(controller.matrixWorld);
+    
+    // Create a vector for the gun tip position (end of barrel)
+    const gunTip = new THREE.Vector3(0, 0, -0.3);
+    // Create a vector for the direction the gun is pointing
+    const rayDirection = new THREE.Vector3(0, 0, -1);
+    
+    // Apply the gun model's local transformations
+    gunTip.applyMatrix4(gunModel.matrixWorld);
+    rayDirection.transformDirection(gunModel.matrixWorld);
     
     raycaster.set(gunTip, rayDirection);
     
@@ -414,10 +420,22 @@ function checkTargetHits(controllerIndex) {
 
 // Animation loop
 function animate() {
-    // Update pointer lines if needed
+    // Update raycasters to match pointer lines
     for (let i = 0; i < controllers.length; i++) {
-        // The pointer line is already attached to the controller, which has the gun model
-        // So it will automatically follow the gun's position and orientation
+        if (controllers[i] && gunModels[i]) {
+            // Update the raycaster to match the current gun position and orientation
+            const gunModel = gunModels[i];
+            const gunTip = new THREE.Vector3(0, 0, -0.3);
+            const rayDirection = new THREE.Vector3(0, 0, -1);
+            
+            // Apply the gun model's transformations
+            gunModel.updateMatrixWorld(true);
+            gunTip.applyMatrix4(gunModel.matrixWorld);
+            rayDirection.transformDirection(gunModel.matrixWorld);
+            
+            // Update the raycaster
+            raycasters[i].set(gunTip, rayDirection);
+        }
     }
     
     // Rotate targets slightly to make them more visible

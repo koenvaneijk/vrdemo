@@ -1075,7 +1075,7 @@ function createLowPolyTree(x, y, z) {
         flatShading: true
     });
     const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-    trunk.position.y = 1;
+    trunk.position.y = 1; // Half of trunk height
     treeGroup.add(trunk);
     
     // Tree foliage (cone)
@@ -1089,8 +1089,8 @@ function createLowPolyTree(x, y, z) {
     foliage.position.y = 3.5;
     treeGroup.add(foliage);
     
-    // Position the tree
-    treeGroup.position.set(x, y, z);
+    // Position the tree - ensure y=0 is at ground level
+    treeGroup.position.set(x, 0, z);
     
     // Add some random rotation and scale
     treeGroup.rotation.y = Math.random() * Math.PI * 2;
@@ -1102,7 +1102,8 @@ function createLowPolyTree(x, y, z) {
 
 // Create a low-poly rock
 function createLowPolyRock(x, y, z) {
-    const rockGeometry = new THREE.DodecahedronGeometry(0.5 + Math.random() * 0.5, 0);
+    const rockSize = 0.5 + Math.random() * 0.5;
+    const rockGeometry = new THREE.DodecahedronGeometry(rockSize, 0);
     const rockMaterial = new THREE.MeshStandardMaterial({
         color: 0x808080, // Gray
         roughness: 1.0,
@@ -1110,8 +1111,8 @@ function createLowPolyRock(x, y, z) {
     });
     const rock = new THREE.Mesh(rockGeometry, rockMaterial);
     
-    // Position the rock
-    rock.position.set(x, y + 0.25, z);
+    // Position the rock - ensure bottom is at ground level
+    rock.position.set(x, rockSize * 0.5, z);
     
     // Add some random rotation and scale
     rock.rotation.set(

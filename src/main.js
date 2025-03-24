@@ -139,7 +139,14 @@ function setupVRControllers() {
             linewidth: 2
         });
         const pointerLine = new THREE.Line(lineGeometry, lineMaterial);
-        controller.add(pointerLine);
+        
+        // Position the line to start from the gun barrel
+        pointerLine.position.z = -0.3; // Align with the end of the barrel
+        pointerLine.position.y = 0; // Adjust vertical position to match barrel
+        
+        // Add the line to the gun model instead of directly to the controller
+        // This ensures it follows the gun's orientation exactly
+        gunModel.add(pointerLine);
         
         // Store references
         controllers.push(controller);

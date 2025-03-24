@@ -208,54 +208,8 @@ function shootGun(index) {
     }
 }
 
-// Create a 3D text display for the score
+// Create a score display using a canvas texture
 function createScoreDisplay() {
-    // Load font
-    const loader = new THREE.FontLoader();
-    
-    // Use a callback to handle the asynchronous font loading
-    loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', function(font) {
-        const textGeometry = new THREE.TextGeometry('Score: 0', {
-            font: font,
-            size: 0.2,
-            height: 0.02,
-            curveSegments: 12,
-            bevelEnabled: false
-        });
-        
-        // Center the text geometry
-        textGeometry.computeBoundingBox();
-        const textWidth = textGeometry.boundingBox.max.x - textGeometry.boundingBox.min.x;
-        textGeometry.translate(-textWidth / 2, 0, 0);
-        
-        const textMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0xffffff,
-            emissive: 0x444444
-        });
-        
-        scoreText = new THREE.Mesh(textGeometry, textMaterial);
-        
-        // Position the score display in front of the player
-        scoreText.position.set(0, 2.2, -2);
-        scoreText.rotation.x = -0.2; // Tilt slightly for better visibility
-        
-        scene.add(scoreText);
-        logger.log('Score display created');
-    }, 
-    // onProgress callback
-    function(xhr) {
-        logger.log('Font loading: ' + (xhr.loaded / xhr.total * 100) + '%');
-    },
-    // onError callback
-    function(err) {
-        logger.error('Error loading font:', err);
-        // Create a fallback score display using a simple plane with texture
-        createFallbackScoreDisplay();
-    });
-}
-
-// Create a fallback score display if font loading fails
-function createFallbackScoreDisplay() {
     // Create canvas for the score
     const canvas = document.createElement('canvas');
     canvas.width = 256;
@@ -302,60 +256,25 @@ function createFallbackScoreDisplay() {
 function updateScoreDisplay() {
     if (!scoreText) return;
     
-    // Check if we're using the fallback display (with canvas texture)
-    if (scoreText.userData && scoreText.userData.context) {
-        const context = scoreText.userData.context;
-        const canvas = scoreText.userData.canvas;
-        
-        // Clear canvas
-        context.clearRect(0, 0, canvas.width, canvas.height);
-        
-        // Redraw background
-        context.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        context.fillRect(0, 0, canvas.width, canvas.height);
-        
-        // Draw updated score
-        context.font = 'Bold 36px Arial';
-        context.fillStyle = 'white';
-        context.textAlign = 'center';
-        context.textBaseline = 'middle';
-        context.fillText(`Score: ${score}`, canvas.width / 2, canvas.height / 2);
-        
-        // Update texture
-        scoreText.userData.texture.needsUpdate = true;
-    } else {
-        // If using 3D text, we need to remove the old text and create a new one
-        // This is because TextGeometry can't be updated dynamically
-        scene.remove(scoreText);
-        
-        // Load font again (it should be cached now)
-        const loader = new THREE.FontLoader();
-        loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', function(font) {
-            const textGeometry = new THREE.TextGeometry(`Score: ${score}`, {
-                font: font,
-                size: 0.2,
-                height: 0.02,
-                curveSegments: 12,
-                bevelEnabled: false
-            });
-            
-            // Center the text geometry
-            textGeometry.computeBoundingBox();
-            const textWidth = textGeometry.boundingBox.max.x - textGeometry.boundingBox.min.x;
-            textGeometry.translate(-textWidth / 2, 0, 0);
-            
-            const textMaterial = new THREE.MeshStandardMaterial({ 
-                color: 0xffffff,
-                emissive: 0x444444
-            });
-            
-            scoreText = new THREE.Mesh(textGeometry, textMaterial);
-            scoreText.position.set(0, 2.2, -2);
-            scoreText.rotation.x = -0.2;
-            
-            scene.add(scoreText);
-        });
-    }
+    const context = scoreText.userData.context;
+    const canvas = scoreText.userData.canvas;
+    
+    // Clear canvas
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Redraw background
+    context.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw updated score
+    context.font = 'Bold 36px Arial';
+    context.fillStyle = 'white';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText(`Score: ${score}`, canvas.width / 2, canvas.height / 2);
+    
+    // Update texture
+    scoreText.userData.texture.needsUpdate = true;
 }
 
 // Initialize the scene, camera, and renderer

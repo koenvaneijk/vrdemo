@@ -61,6 +61,34 @@ let moveTargetsInterval; // Interval for moving targets
 let score = 0; // Player's score
 let scoreText; // 3D text for displaying score
 
+// Target types with their properties
+const TARGET_TYPES = {
+    SMALL: {
+        size: 0.15,
+        color: 0xff0000, // Red
+        emissiveIntensity: 0.5,
+        speedMultiplier: 2.0,
+        points: 30,
+        spawnChance: 0.2 // 20% chance
+    },
+    MEDIUM: {
+        size: 0.3,
+        color: 0xffff00, // Yellow
+        emissiveIntensity: 0.3,
+        speedMultiplier: 1.0,
+        points: 10,
+        spawnChance: 0.5 // 50% chance
+    },
+    LARGE: {
+        size: 0.5,
+        color: 0x00ff00, // Green
+        emissiveIntensity: 0.2,
+        speedMultiplier: 0.6,
+        points: 5,
+        spawnChance: 0.3 // 30% chance
+    }
+};
+
 // Initialize Tone.js sound effects
 function initSounds() {
     // Start Tone.js audio context (needs to be triggered by user interaction)
@@ -561,41 +589,65 @@ function spawnTarget() {
         const x = (Math.random() - 0.5) * 40; // -20 to 20 meters
         const z = (Math.random() - 0.5) * 40; // -20 to 20 meters
         
+        // Determine target type based on random chance
+        const rand = Math.random();
+        let targetType;
+        
+        if (rand < TARGET_TYPES.SMALL.spawnChance) {
+            targetType = TARGET_TYPES.SMALL;
+        } else if (rand < TARGET_TYPES.SMALL.spawnChance + TARGET_TYPES.MEDIUM.spawnChance) {
+            targetType = TARGET_TYPES.MEDIUM;
+        } else {
+            targetType = TARGET_TYPES.LARGE;
+        }
+        
         // Create target geometry (sphere)
-        const targetGeometry = new THREE.SphereGeometry(0.3, 32, 32);
+        const targetGeometry = new THREE.SphereGeometry(targetType.size, 32, 32);
         const targetMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0xffff00,
-            emissive: 0xffff00,
-            emissiveIntensity: 0.3,
+            color: targetType.color,
+            emissive: targetType.color,
+            emissiveIntensity: targetType.emissiveIntensity,
             roughness: 0.4
         });
         const target = new THREE.Mesh(targetGeometry, targetMaterial);
         
-        // Position the target on the ground (y=0.3 to place bottom of sphere on ground)
-        target.position.set(x, 0.3, z);
+        // Position the target on the ground (y = radius to place bottom of sphere on ground)
+        target.position.set(x, targetType.size, z);
         
         // Add random movement direction
         const angle = Math.random() * Math.PI * 2;
-        const speed = 0.005 + Math.random() * 0.01; // Slower speed between 0.005 and 0.015 units per frame
+        const baseSpeed = 0.005 + Math.random() * 0.01; // Base speed between 0.005 and 0.015 units per frame
+        const speed = baseSpeed * targetType.speedMultiplier; // Apply speed multiplier based on target type
         
         // Store movement data with the target
         target.userData = {
             velocity: new THREE.Vector2(Math.cos(angle) * speed, Math.sin(angle) * speed),
-            lastPosition: new THREE.Vector3(x, 0.3, z),
-            targetPosition: new THREE.Vector3(x, 0.3, z) // Target position for lerping
+            lastPosition: new THREE.Vector3(x, targetType.size, z),
+            targetPosition: new THREE.Vector3(x, targetType.size, z), // Target position for lerping
+            type: targetType, // Store the target type for reference
+            points: targetType.points // Store the point value
         };
         
         // Add to scene and targets array
         scene.add(target);
         targets.push(target);
         
-        logger.log(`Spawned target at (${x.toFixed(2)}, 0.3, ${z.toFixed(2)}), total targets: ${targets.length}`);
+        logger.log(`Spawned ${getTargetTypeName(targetType)} target at (${x.toFixed(2)}, ${targetType.size.toFixed(2)}, ${z.toFixed(2)}), total targets: ${targets.length}`);
         
         return target;
     } catch (error) {
         logger.error('Error in spawnTarget:', error);
         return null;
     }
+}
+
+// Helper function to get target type name
+function getTargetTypeName(targetType) {
+    if (targetType === TARGET_TYPES.SMALL) return "SMALL";
+    if (targetType === TARGET_TYPES.MEDIUM) return "MEDIUM";
+    if (targetType === TARGET_TYPES.LARGE) return "LARGE";
+    return "UNKNOWN";
+}
 }
 
 // Remove a target from the scene
@@ -666,20 +718,26 @@ function checkTargetHits(controllerIndex) {
         }
         
         if (hitTarget) {
-            logger.log(`Hit target ${hitTargetIndex} at distance ${hitDistance.toFixed(2)}`);
+            // Get the point value from the target
+            const pointValue = hitTarget.userData.type.points;
+            const targetTypeName = getTargetTypeName(hitTarget.userData.type);
             
-            // Play hit sound
-            targetHitSound.triggerAttackRelease("C5", "16n");
+            logger.log(`Hit ${targetTypeName} target ${hitTargetIndex} at distance ${hitDistance.toFixed(2)}`);
+            
+            // Play hit sound with pitch based on target size (higher pitch for smaller targets)
+            const noteOffset = hitTarget.userData.type === TARGET_TYPES.SMALL ? 12 : 
+                              hitTarget.userData.type === TARGET_TYPES.MEDIUM ? 7 : 0;
+            targetHitSound.triggerAttackRelease(`C${5 + Math.floor(noteOffset/12)}`, "16n");
             
             // Increment score
-            score += 10;
-            logger.log(`Score increased to ${score}`);
+            score += pointValue;
+            logger.log(`Score increased by ${pointValue} to ${score}`);
             
             // Update score display
             updateScoreDisplay();
             
             // Create a floating score indicator at the hit position
-            createFloatingScore(hitTarget.position, 10);
+            createFloatingScore(hitTarget.position, pointValue);
             
             // Remove the hit target
             removeTarget(hitTargetIndex);
@@ -766,8 +824,10 @@ function moveTargets() {
             }
             
             // Lerp the actual position toward the target position (smooth movement)
-            target.position.x = THREE.MathUtils.lerp(target.position.x, userData.targetPosition.x, 0.05);
-            target.position.z = THREE.MathUtils.lerp(target.position.z, userData.targetPosition.z, 0.05);
+            // Use a lerp factor based on the target type - faster targets need faster lerping
+            const lerpFactor = userData.type ? (0.05 * userData.type.speedMultiplier) : 0.05;
+            target.position.x = THREE.MathUtils.lerp(target.position.x, userData.targetPosition.x, lerpFactor);
+            target.position.z = THREE.MathUtils.lerp(target.position.z, userData.targetPosition.z, lerpFactor);
             
             // Update last position
             userData.lastPosition.copy(target.position);

@@ -602,8 +602,8 @@ function onWindowResize() {
 function spawnTarget() {
     try {
         // Random position on the ground plane
-        const x = (Math.random() - 0.5) * 40; // -20 to 20 meters
-        const z = (Math.random() - 0.5) * 40; // -20 to 20 meters
+        const x = (Math.random() - 0.5) * 60; // -30 to 30 meters
+        const z = (Math.random() - 0.5) * 60; // -30 to 30 meters
         
         // Determine target type based on random chance
         const rand = Math.random();
@@ -925,7 +925,7 @@ function moveTargets() {
             userData.targetPosition.z += velocity.y;
             
             // Bounce off boundaries
-            const boundarySize = 24; // Keep within a 48x48 area (slightly smaller than the 50x50 floor)
+            const boundarySize = 40; // Keep within a 80x80 area (slightly smaller than the terrain)
             if (Math.abs(userData.targetPosition.x) > boundarySize) {
                 velocity.x *= -1; // Reverse x direction
                 userData.targetPosition.x = Math.sign(userData.targetPosition.x) * boundarySize; // Keep within bounds
@@ -952,8 +952,8 @@ function moveTargets() {
 // Create a low-poly terrain
 function createLowPolyTerrain() {
     // Create a larger terrain with low-poly style
-    const terrainSize = 100;
-    const terrainSegments = 50;
+    const terrainSize = 200;
+    const terrainSegments = 75;
     const terrainGeometry = new THREE.PlaneGeometry(terrainSize, terrainSize, terrainSegments, terrainSegments);
     
     // Modify vertices to create hills and valleys
@@ -1017,7 +1017,7 @@ function createLowPolyTerrain() {
     scene.add(terrain);
     
     // Add a flat area for gameplay
-    const playAreaGeometry = new THREE.CircleGeometry(20, 32);
+    const playAreaGeometry = new THREE.CircleGeometry(30, 32);
     const playAreaMaterial = new THREE.MeshStandardMaterial({
         color: 0x90EE90, // Light green
         roughness: 0.9,
@@ -1030,7 +1030,7 @@ function createLowPolyTerrain() {
     scene.add(playArea);
     
     // Add a subtle grid to the play area
-    const gridHelper = new THREE.GridHelper(40, 20);
+    const gridHelper = new THREE.GridHelper(60, 30);
     gridHelper.position.y = 0.01; // Slightly above the ground to avoid z-fighting
     gridHelper.material.opacity = 0.2;
     gridHelper.material.transparent = true;
@@ -1040,10 +1040,10 @@ function createLowPolyTerrain() {
 // Add decorative elements to the environment
 function addEnvironmentElements() {
     // Add some low-poly trees
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 50; i++) {
         // Position trees around the play area but not in it
         const angle = Math.random() * Math.PI * 2;
-        const radius = 25 + Math.random() * 40; // Between 25 and 65 units from center
+        const radius = 35 + Math.random() * 60; // Between 35 and 95 units from center
         const x = Math.cos(angle) * radius;
         const z = Math.sin(angle) * radius;
         
@@ -1051,9 +1051,9 @@ function addEnvironmentElements() {
     }
     
     // Add some rocks
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 35; i++) {
         const angle = Math.random() * Math.PI * 2;
-        const radius = 22 + Math.random() * 40; // Between 22 and 62 units from center
+        const radius = 32 + Math.random() * 60; // Between 32 and 92 units from center
         const x = Math.cos(angle) * radius;
         const z = Math.sin(angle) * radius;
         
@@ -1135,9 +1135,9 @@ function createDistantMountains() {
     const mountainGroup = new THREE.Group();
     
     // Create a ring of mountains around the scene
-    for (let i = 0; i < 12; i++) {
-        const angle = (i / 12) * Math.PI * 2;
-        const radius = 80;
+    for (let i = 0; i < 16; i++) {
+        const angle = (i / 16) * Math.PI * 2;
+        const radius = 140;
         const x = Math.cos(angle) * radius;
         const z = Math.sin(angle) * radius;
         

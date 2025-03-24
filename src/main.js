@@ -3,12 +3,53 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { VRButton } from 'three/examples/jsm/webxr/VRButton.js';
 import { XRControllerModelFactory } from 'three/examples/jsm/webxr/XRControllerModelFactory.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 // Main Three.js VR application
 let scene, camera, renderer;
 let controllers = [];
-let handSpheres = [];
+let gunModels = [];
 let pointerLines = [];
+let gunModelLeft, gunModelRight;
+
+// Create a simple gun model
+function createGunModel(color) {
+    const gunGroup = new THREE.Group();
+    
+    // Gun barrel
+    const barrelGeometry = new THREE.CylinderGeometry(0.02, 0.02, 0.3, 16);
+    const barrelMaterial = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.5 });
+    const barrel = new THREE.Mesh(barrelGeometry, barrelMaterial);
+    barrel.rotation.x = Math.PI / 2;
+    barrel.position.z = -0.15;
+    gunGroup.add(barrel);
+    
+    // Gun handle
+    const handleGeometry = new THREE.BoxGeometry(0.05, 0.1, 0.03);
+    const handleMaterial = new THREE.MeshStandardMaterial({ color: color, roughness: 0.7 });
+    const handle = new THREE.Mesh(handleGeometry, handleMaterial);
+    handle.position.y = -0.05;
+    gunGroup.add(handle);
+    
+    // Gun body
+    const bodyGeometry = new THREE.BoxGeometry(0.06, 0.06, 0.1);
+    const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.5 });
+    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    body.position.z = -0.02;
+    gunGroup.add(body);
+    
+    // Sight
+    const sightGeometry = new THREE.BoxGeometry(0.01, 0.03, 0.01);
+    const sightMaterial = new THREE.MeshStandardMaterial({ color: 0x111111 });
+    const sight = new THREE.Mesh(sightGeometry, sightMaterial);
+    sight.position.set(0, 0.03, -0.02);
+    gunGroup.add(sight);
+    
+    // Rotate the entire gun to point forward
+    gunGroup.rotation.y = Math.PI;
+    
+    return gunGroup;
+}
 
 // Initialize the scene, camera, and renderer
 function init() {
@@ -78,15 +119,10 @@ function setupVRControllers() {
         const controller = renderer.xr.getController(i);
         scene.add(controller);
 
-        // Create hand sphere (visual representation of hand)
-        const sphereGeometry = new THREE.SphereGeometry(0.05, 32, 32);
-        const sphereMaterial = new THREE.MeshStandardMaterial({
-            color: i === 0 ? 0xff0000 : 0x0000ff, // Red for left, blue for right
-            roughness: 0.7,
-            metalness: 0.3
-        });
-        const handSphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-        controller.add(handSphere);
+        // Create gun model for the hand
+        const gunColor = i === 0 ? 0xff0000 : 0x0000ff; // Red for left, blue for right
+        const gunModel = createGunModel(gunColor);
+        controller.add(gunModel);
         
         // Create pointer line
         const lineGeometry = new THREE.BufferGeometry().setFromPoints([
@@ -102,7 +138,7 @@ function setupVRControllers() {
         
         // Store references
         controllers.push(controller);
-        handSpheres.push(handSphere);
+        gunModels.push(gunModel);
         pointerLines.push(pointerLine);
 
         // Add controller grip for model
@@ -125,7 +161,10 @@ function animate() {
     // Update pointer lines if needed
     for (let i = 0; i < controllers.length; i++) {
         // You can add more complex logic here if needed
-        // For example, casting rays to detect intersections
+        // For example, casting rays to detect intersections with targets
+        
+        // The pointer line is already attached to the controller, which has the gun model
+        // So it will automatically follow the gun's position and orientation
     }
     
     renderer.render(scene, camera);

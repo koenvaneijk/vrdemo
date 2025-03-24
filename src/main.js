@@ -45,8 +45,9 @@ function createGunModel(color) {
     sight.position.set(0, 0.03, -0.02);
     gunGroup.add(sight);
     
-    // Rotate the entire gun to point forward (away from the user)
-    // No rotation needed on y-axis as we want it to point forward by default
+    // Position the gun to align better with the arm direction
+    // Move it back along the arm axis so it appears to extend from the arm
+    gunGroup.position.z = 0.1;  // Move slightly toward the user's arm
     
     return gunGroup;
 }
@@ -122,6 +123,10 @@ function setupVRControllers() {
         // Create gun model for the hand
         const gunColor = i === 0 ? 0xff0000 : 0x0000ff; // Red for left, blue for right
         const gunModel = createGunModel(gunColor);
+        
+        // Apply a slight rotation to align better with the controller
+        gunModel.rotation.x = -0.3; // Tilt down slightly to align with hand grip
+        
         controller.add(gunModel);
         
         // Create pointer line

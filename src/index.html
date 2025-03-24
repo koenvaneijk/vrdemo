@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VR Hands Demo</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+        #enter-vr-button {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            background: #4285f4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            z-index: 100;
+        }
+        #enter-vr-button:hover {
+            background: #3367d6;
+        }
+        #instructions {
+            position: absolute;
+            top: 20px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            color: white;
+            font-family: Arial, sans-serif;
+            font-size: 18px;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div id="instructions">Enter VR mode and move your hands to see them represented as spheres</div>
+    <button id="enter-vr-button">Enter VR</button>
+    
+    <!-- Main JavaScript file (using ES modules) -->
+    <script type="module" src="./main.js"></script>
+</body>
+</html>

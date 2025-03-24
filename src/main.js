@@ -394,27 +394,46 @@ function checkTargetHits(controllerIndex) {
     raycaster.set(gunTip, rayDirection);
     
     // Check for intersections with targets
-    const intersects = raycaster.intersectObjects(targets);
+    // Use a larger threshold for easier hitting (0.2 is the default)
+    const intersects = raycaster.intersectObjects(targets, false);
     
-    if (intersects.length > 0) {
-        // Find the target in our array
-        const hitTarget = intersects[0].object;
-        const targetIndex = targets.indexOf(hitTarget);
+    // Check if any target is close to the ray
+    let hitTarget = null;
+    let hitDistance = Infinity;
+    let hitTargetIndex = -1;
+    
+    // Loop through all targets to find the closest one within range
+    for (let i = 0; i < targets.length; i++) {
+        const target = targets[i];
         
-        if (targetIndex !== -1) {
-            // Play hit sound
-            targetHitSound.triggerAttackRelease("C5", "16n");
-            
-            // Remove the hit target
-            removeTarget(targetIndex);
-            
-            // Spawn a new target after a delay
-            setTimeout(() => {
-                if (targets.length < 10) {
-                    spawnTarget();
-                }
-            }, 1000);
+        // Get target world position
+        const targetPosition = new THREE.Vector3();
+        target.getWorldPosition(targetPosition);
+        
+        // Calculate distance from ray to target center
+        const distance = raycaster.ray.distanceToPoint(targetPosition);
+        
+        // If within our enlarged hitbox radius (0.3 meters) and closer than any previous hit
+        if (distance < 0.3 && distance < hitDistance) {
+            hitTarget = target;
+            hitDistance = distance;
+            hitTargetIndex = i;
         }
+    }
+    
+    if (hitTarget) {
+        // Play hit sound
+        targetHitSound.triggerAttackRelease("C5", "16n");
+        
+        // Remove the hit target
+        removeTarget(hitTargetIndex);
+        
+        // Spawn a new target after a delay
+        setTimeout(() => {
+            if (targets.length < 10) {
+                spawnTarget();
+            }
+        }, 1000);
     }
 }
 
